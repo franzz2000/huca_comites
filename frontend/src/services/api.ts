@@ -31,10 +31,21 @@ export const updateUsuario = (id: number, data: Partial<Usuario>): Promise<ApiRe
 export const deleteUsuario = (id: number): Promise<ApiResponse<void>> => api.delete(`/api/usuarios/${id}`);
 
 // Miembros
-export const getMiembros = (grupoId?: number): Promise<ApiResponse<Miembro[]>> => 
-    grupoId ? api.get(`/api/miembros?grupoId=${grupoId}`) : api.get('/api/miembros');
+export const getMiembros = (grupoId?: number, activo?: boolean): Promise<ApiResponse<Miembro[]>> => {
+    const params = new URLSearchParams();
+    if (grupoId) params.append('grupoId', grupoId.toString());
+    if (activo !== undefined) params.append('activo', activo.toString());
+    
+    const queryString = params.toString();
+    return api.get(`/api/miembros${queryString ? `?${queryString}` : ''}`);
+};
+
 export const createMiembro = (data: Omit<Miembro, 'id'>): Promise<ApiResponse<Miembro>> => 
     api.post('/api/miembros', data);
+
+export const updateMiembro = (id: number, data: Partial<Miembro>): Promise<ApiResponse<Miembro>> => 
+    api.put(`/api/miembros/${id}`, data);
+
 export const deleteMiembro = (id: number): Promise<ApiResponse<void>> => 
     api.delete(`/api/miembros/${id}`);
 

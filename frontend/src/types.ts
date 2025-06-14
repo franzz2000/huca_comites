@@ -21,7 +21,8 @@ export interface Miembro {
     grupo_id: number;
     fecha_inicio?: string;
     fecha_fin?: string | null;
-    persona: Usuario;
+    persona?: Usuario;
+    activo?: boolean;
 }
 
 export interface Reunion {

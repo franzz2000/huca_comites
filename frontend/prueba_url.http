@@ -28,3 +28,8 @@ POST http://localhost:3001/api/usuarios
     "puesto_trabajo": "Desarrollador",
     "observaciones": "Reunion de la Comunidad"
   }
+
+###
+GET http://localhost:3001/api/miembros
+
+

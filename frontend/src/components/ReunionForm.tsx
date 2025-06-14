@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -56,30 +56,103 @@ export const ReunionForm: React.FC<ReunionFormProps> = ({
   const [descripcion, setDescripcion] = useState(reunion?.descripcion || '');
   const [asistencias, setAsistencias] = useState<Record<number, { estado: Asistencia['estado']; observaciones: string }>>({});
   const [isSaving, setIsSaving] = useState(false);
-
-  // Inicializar asistencias cuando se abre el formulario o cambia la reunión
+  
+  // Filtrar miembros que estaban activos en la fecha de la reunión
+  const miembrosActivos = useMemo(() => {
+    if (!fecha) return [];
+    
+    const fechaReunion = fecha;
+    return miembros.filter((miembro: Miembro) => {
+      // Si no hay fecha de inicio, no incluir al miembro
+      if (!miembro.fecha_inicio) return false;
+      
+      const fechaInicio = new Date(miembro.fecha_inicio);
+      
+      // Si la fecha de reunión es anterior a la fecha de inicio, no incluir
+      if (fechaReunion < fechaInicio) return false;
+      
+      // Si hay fecha de fin y la reunión es posterior, no incluir
+      if (miembro.fecha_fin) {
+        const fechaFin = new Date(miembro.fecha_fin);
+        if (fechaReunion > fechaFin) return false;
+      }
+      
+      return true;
+    });
+  }, [miembros, fecha]);
+  
+  // Actualizar asistencias cuando cambian los miembros activos o la reunión
   useEffect(() => {
-    if (reunion?.asistencias) {
-      const asistenciasIniciales = reunion.asistencias.reduce((acc, a) => ({
-        ...acc,
-        [a.persona_id]: {
-          estado: a.estado,
-          observaciones: a.observaciones || '',
-        },
-      }), {});
-      setAsistencias(asistenciasIniciales);
-    } else {
-      // Inicializar asistencias para todos los miembros como 'no_asistio'
-      const asistenciasIniciales = miembros.reduce((acc, miembro) => ({
-        ...acc,
-        [miembro.persona_id]: {
-          estado: 'no_asistio' as const,
-          observaciones: '',
-        },
-      }), {});
-      setAsistencias(asistenciasIniciales);
+    // Solo actualizar si hay cambios en los miembros activos o en las asistencias de la reunión
+    const hasAsistencias = reunion?.asistencias && reunion.asistencias.length > 0;
+    
+    // Crear un nuevo objeto de asistencias basado en el estado actual
+    const nuevasAsistencias = { ...asistencias };
+    let hasChanges = false;
+    
+    // Obtener IDs de miembros activos para verificación rápida
+    const idsMiembrosActivos = new Set(miembrosActivos.map((m: Miembro) => m.persona_id));
+    
+    // 1. Eliminar asistencias de miembros que ya no están activos
+    Object.keys(nuevasAsistencias).forEach(personaIdStr => {
+      const personaId = Number(personaIdStr);
+      if (!idsMiembrosActivos.has(personaId)) {
+        delete nuevasAsistencias[personaId];
+        hasChanges = true;
+      }
+    });
+    
+    // 2. Añadir o actualizar asistencias para miembros activos
+    miembrosActivos.forEach((miembro: Miembro) => {
+      const personaId = miembro.persona_id;
+      
+      // Si ya existe la asistencia, mantenerla
+      if (nuevasAsistencias[personaId]) return;
+      
+      // Si hay asistencias de la reunión, buscar la existente
+      if (hasAsistencias) {
+        const asistenciaExistente = reunion.asistencias?.find(a => a.persona_id === personaId);
+        if (asistenciaExistente) {
+          nuevasAsistencias[personaId] = {
+            estado: asistenciaExistente.estado,
+            observaciones: asistenciaExistente.observaciones || ''
+          };
+          hasChanges = true;
+          return;
+        }
+      }
+      
+      // Si no hay asistencia existente, crear una nueva
+      nuevasAsistencias[personaId] = { 
+        estado: 'no_asistio' as const, 
+        observaciones: '' 
+      };
+      hasChanges = true;
+    });
+    
+    // Solo actualizar el estado si hubo cambios
+    if (hasChanges) {
+      setAsistencias(nuevasAsistencias);
     }
-  }, [reunion, miembros]);
+  }, [miembrosActivos, reunion?.asistencias, asistencias]);
+
+  // Inicializar datos del formulario cuando se abre o cambia la reunión
+  useEffect(() => {
+    if (reunion) {
+      // Inicializar ubicación y descripción de la reunión existente
+      setUbicacion(reunion.ubicacion || '');
+      setDescripcion(reunion.descripcion || '');
+      
+      // Las asistencias se manejan en el otro useEffect que depende de miembrosActivos
+      // para asegurar que siempre estén sincronizadas con los miembros activos
+    } else {
+      // Inicializar valores por defecto para nueva reunión
+      setUbicacion('');
+      setDescripcion('');
+      
+      // La inicialización de asistencias se maneja en el otro useEffect
+    }
+  }, [reunion]);
 
   const handleAsistenciaChange = (personaId: number, estado: Asistencia['estado']) => {
     setAsistencias(prev => ({
@@ -226,13 +299,16 @@ export const ReunionForm: React.FC<ReunionFormProps> = ({
                 </TableRow>
               </TableHead>
               <TableBody>
-                {miembros.map((miembro) => {
+                {miembrosActivos.map((miembro: Miembro) => {
                   const asistencia = asistencias[miembro.persona_id] || { estado: 'no_asistio', observaciones: '' };
                   
                   return (
                     <TableRow key={miembro.persona_id}>
                       <TableCell>
-                        {`${miembro.persona.nombre} ${miembro.persona.primer_apellido}${miembro.persona.segundo_apellido ? ' ' + miembro.persona.segundo_apellido : ''}`}
+                        {miembro.persona ? 
+                          `${miembro.persona.nombre || ''} ${miembro.persona.primer_apellido || ''}${miembro.persona.segundo_apellido ? ' ' + miembro.persona.segundo_apellido : ''}` : 
+                          `Usuario ${miembro.persona_id}`
+                        }
                       </TableCell>
                       <TableCell align="center">
                         <Box display="flex" justifyContent="center" gap={1}>

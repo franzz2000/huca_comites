@@ -1,7 +1,24 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
-const path = require('path');
+//const path = require('path');
+
+// Función para validar fechas de membresía
+const validarFechasMembresia = (fechaInicio, fechaFin) => {
+    if (fechaInicio && fechaFin) {
+        const inicio = new Date(fechaInicio);
+        const fin = new Date(fechaFin);
+        
+        if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) {
+            return { valido: false, error: 'Formato de fecha inválido. Use YYYY-MM-DD' };
+        }
+        
+        if (inicio > fin) {
+            return { valido: false, error: 'La fecha de fin debe ser posterior a la fecha de inicio' };
+        }
+    }
+    return { valido: true };
+};
 
 const app = express();
 app.use(cors());
@@ -17,97 +34,121 @@ const db = new sqlite3.Database('./data/grupos.db', (err) => {
 });
 
 // Crear usuario de prueba si no existe
-const createTestUser = () => {
+const createTestUser = (callback) => {
     db.get('SELECT COUNT(*) as count FROM personas', [], (err, row) => {
         if (err) {
             console.error('Error al verificar usuarios existentes:', err);
-            return;
+            return callback ? callback(err) : null;
         }
         
         if (row.count === 0) {
-            console.log('No hay usuarios en la base de datos. Creando usuario de prueba...');
             db.run(
-                'INSERT INTO personas (nombre, primer_apellido, segundo_apellido, email, telefono, puesto_trabajo, observaciones) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [
-                    'Usuario', 
-                    'de Prueba', 
-                    'Ejemplo', 
-                    'test@example.com',
-                    '600123456',
-                    'Desarrollador',
-                    'Usuario de prueba creado automáticamente'
-                ],
+                'INSERT INTO personas (nombre, primer_apellido, email) VALUES (?, ?, ?)', 
+                ['Usuario', 'Prueba', 'usuario@example.com'],
                 function(err) {
                     if (err) {
                         console.error('Error al crear usuario de prueba:', err);
+                        return callback ? callback(err) : null;
                     } else {
                         console.log('Usuario de prueba creado con ID:', this.lastID);
+                        return callback ? callback(null) : null;
                     }
                 }
             );
+        } else {
+            console.log('Ya existen usuarios en la base de datos');
+            return callback ? callback(null) : null;
         }
     });
 };
 
 // Crear tablas
-const createTables = () => {
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS grupos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT NOT NULL,
-            descripcion TEXT
-        );
+const createTables = (callback) => {
+    db.serialize(() => {
+        // Crear tablas en orden
+        db.run(`
+            CREATE TABLE IF NOT EXISTS grupos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL,
+                descripcion TEXT
+            )`);
 
-        CREATE TABLE IF NOT EXISTS personas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT NOT NULL,
-            primer_apellido TEXT NOT NULL,
-            segundo_apellido TEXT,
-            email TEXT UNIQUE NOT NULL,
-            telefono TEXT,
-            puesto_trabajo TEXT,
-            observaciones TEXT
-        );
+        db.run(`
+            CREATE TABLE IF NOT EXISTS personas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL,
+                primer_apellido TEXT NOT NULL,
+                segundo_apellido TEXT,
+                email TEXT UNIQUE NOT NULL,
+                telefono TEXT,
+                puesto_trabajo TEXT,
+                observaciones TEXT
+            )`);
 
-        CREATE TABLE IF NOT EXISTS miembros (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            persona_id INTEGER,
-            grupo_id INTEGER,
-            fecha_inicio DATE,
-            fecha_fin DATE,
-            FOREIGN KEY (persona_id) REFERENCES personas(id),
-            FOREIGN KEY (grupo_id) REFERENCES grupos(id)
-        );
+        db.run(`
+            CREATE TABLE IF NOT EXISTS miembros (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                persona_id INTEGER,
+                grupo_id INTEGER,
+                fecha_inicio DATE,
+                fecha_fin DATE,
+                activo BOOLEAN DEFAULT 1,
+                FOREIGN KEY (persona_id) REFERENCES personas(id),
+                FOREIGN KEY (grupo_id) REFERENCES grupos(id)
+            )`);
 
-        CREATE TABLE IF NOT EXISTS reuniones (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            grupo_id INTEGER NOT NULL,
-            fecha TEXT NOT NULL,
-            hora TEXT NOT NULL,
-            ubicacion TEXT NOT NULL,
-            descripcion TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE
-        );
+        // Asegurar que la columna activo existe
+        db.get("SELECT COUNT(*) as count FROM pragma_table_info('miembros') WHERE name = 'activo'", (err, row) => {
+            if (err) {
+                console.error('Error al verificar columna activo:', err);
+                return callback ? callback(err) : null;
+            }
+            
+            if (row.count === 0) {
+                db.run("ALTER TABLE miembros ADD COLUMN activo BOOLEAN DEFAULT 1", (err) => {
+                    if (err) console.error('Error al agregar columna activo:', err);
+                    createRemainingTables(callback);
+                });
+            } else {
+                createRemainingTables(callback);
+            }
+        });
+    });
+};
 
-        CREATE TABLE IF NOT EXISTS asistencias (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            reunion_id INTEGER NOT NULL,
-            persona_id INTEGER NOT NULL,
-            estado TEXT NOT NULL CHECK(estado IN ('asistio', 'no_asistio', 'excusa')),
-            observaciones TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (reunion_id) REFERENCES reuniones(id) ON DELETE CASCADE,
-            FOREIGN KEY (persona_id) REFERENCES personas(id) ON DELETE CASCADE,
-            UNIQUE(reunion_id, persona_id)
-        );
-        
-        -- Actualizar la tabla de reuniones si ya existe
-        PRAGMA table_info(reuniones);
-        PRAGMA table_info(asistencias);
-    `);
+// Crear el resto de las tablas después de verificar/crear la columna activo
+const createRemainingTables = (callback) => {
+    db.serialize(() => {
+        db.run(`
+            CREATE TABLE IF NOT EXISTS reuniones (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                grupo_id INTEGER NOT NULL,
+                fecha TEXT NOT NULL,
+                hora TEXT NOT NULL,
+                ubicacion TEXT NOT NULL,
+                descripcion TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE
+            )`);
+
+        db.run(`
+            CREATE TABLE IF NOT EXISTS asistencias (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                reunion_id INTEGER NOT NULL,
+                persona_id INTEGER NOT NULL,
+                estado TEXT NOT NULL CHECK(estado IN ('asistio', 'no_asistio', 'excusa')),
+                observaciones TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (reunion_id) REFERENCES reuniones(id) ON DELETE CASCADE,
+                FOREIGN KEY (persona_id) REFERENCES personas(id) ON DELETE CASCADE,
+                UNIQUE(reunion_id, persona_id)
+            )`);
+
+        console.log('Todas las tablas han sido creadas/verificadas');
+        if (callback) callback(null);
+    });
 };
 
 // Rutas API
@@ -390,14 +431,27 @@ app.delete('/api/usuarios/:id', (req, res) => {
 
 // Obtener miembros de un grupo
 app.get('/api/miembros', (req, res) => {
-    const { grupoId } = req.query;
+    const { grupoId, activo } = req.query;
     let query = 'SELECT m.*, p.nombre as persona_nombre, p.primer_apellido, p.segundo_apellido, p.email as persona_email, p.telefono, p.puesto_trabajo, p.observaciones FROM miembros m ' +
                 'JOIN personas p ON m.persona_id = p.id';
     const params = [];
+    const conditions = [];
     
     if (grupoId) {
-        query += ' WHERE m.grupo_id = ?';
+        conditions.push('m.grupo_id = ?');
         params.push(grupoId);
+    }
+    
+    // Por defecto, mostrar solo miembros activos (sin fecha_fin o con fecha_fin en el futuro)
+    // a menos que se especifique activo=false
+    if (activo === undefined || activo === 'true') {
+        conditions.push('(m.fecha_fin IS NULL OR m.fecha_fin >= date("now"))');
+    } else if (activo === 'false') {
+        conditions.push('m.fecha_fin IS NOT NULL AND m.fecha_fin < date("now")');
+    }
+    
+    if (conditions.length > 0) {
+        query += ' WHERE ' + conditions.join(' AND ');
     }
     
     db.all(query, params, (err, rows) => {
@@ -412,6 +466,7 @@ app.get('/api/miembros', (req, res) => {
             grupo_id: row.grupo_id,
             fecha_inicio: row.fecha_inicio,
             fecha_fin: row.fecha_fin,
+            activo: row.activo,
             persona: {
                 id: row.persona_id,
                 nombre: row.persona_nombre,
@@ -430,55 +485,228 @@ app.get('/api/miembros', (req, res) => {
 
 // Agregar un miembro a un grupo
 app.post('/api/miembros', (req, res) => {
-    const { persona_id, grupo_id, fecha_inicio, fecha_fin } = req.body;
+    const { persona_id, grupo_id, fecha_inicio, fecha_fin, activo } = req.body;
     
     if (!persona_id || !grupo_id) {
         return res.status(400).json({ error: 'ID de persona y grupo son requeridos' });
     }
     
-    db.run('INSERT INTO miembros (persona_id, grupo_id, fecha_inicio, fecha_fin) VALUES (?, ?, ?, ?)',
-        [persona_id, grupo_id, fecha_inicio || new Date().toISOString().split('T')[0], fecha_fin || null],
-        async function(err) {
+    const fechaInicio = fecha_inicio || new Date().toISOString().split('T')[0];
+    
+    // Validar fechas
+    const validacionFechas = validarFechasMembresia(fechaInicio, fecha_fin);
+    if (!validacionFechas.valido) {
+        return res.status(400).json({ error: validacionFechas.mensaje });
+    }
+    
+    // Verificar si ya existe una membresía activa para esta persona en este grupo
+    const checkQuery = `
+        SELECT * FROM miembros 
+        WHERE persona_id = ? AND grupo_id = ? 
+        AND activo = 1
+    `;
+    
+    db.get(checkQuery, [persona_id, grupo_id], (err, existente) => {
+        if (err) {
+            console.error('Error al verificar membresía existente:', err);
+            return res.status(500).json({ error: 'Error al verificar membresía existente' });
+        }
+        
+        if (existente) {
+            return res.status(400).json({ error: 'Ya existe una membresía activa para esta persona en este grupo' });
+        }
+        
+        // Insertar la nueva membresía
+        const insertQuery = `
+            INSERT INTO miembros (persona_id, grupo_id, fecha_inicio, fecha_fin, activo)
+            VALUES (?, ?, ?, ?, ?)
+        `;
+        
+        db.run(insertQuery, [
+            persona_id,
+            grupo_id,
+            fechaInicio,
+            fecha_fin || null,
+            fecha_fin ? 0 : 1  // Activo si no hay fecha_fin
+        ], function(err) {
             if (err) {
-                console.error('Error al agregar miembro:', err);
-                return res.status(500).json({ 
-                    error: 'Error al agregar el miembro',
-                    details: err.message 
-                });
+                console.error('Error al crear la membresía:', err);
+                return res.status(500).json({ error: 'Error al crear la membresía' });
             }
             
-            // Obtener los datos completos del miembro
+            // Obtener los datos completos de la persona
             db.get(
-                'SELECT m.*, p.nombre as persona_nombre, p.email as persona_email ' +
+                'SELECT m.*, p.nombre as persona_nombre, p.primer_apellido, p.segundo_apellido, ' +
+                'p.email as persona_email, p.telefono, p.puesto_trabajo, p.observaciones ' +
                 'FROM miembros m JOIN personas p ON m.persona_id = p.id WHERE m.id = ?',
                 [this.lastID],
                 (err, row) => {
-                    if (err || !row) {
+                    if (err) {
+                        console.error('Error al obtener datos de la persona:', err);
+                        // Devolver datos básicos si hay error
                         return res.status(201).json({
                             id: this.lastID,
                             persona_id,
                             grupo_id,
-                            fecha_inicio,
-                            fecha_fin
+                            fecha_inicio: fechaInicio,
+                            fecha_fin: fecha_fin || null,
+                            activo: !fecha_fin
                         });
                     }
                     
+                    // Devolver datos completos
                     res.status(201).json({
                         id: row.id,
                         persona_id: row.persona_id,
                         grupo_id: row.grupo_id,
                         fecha_inicio: row.fecha_inicio,
                         fecha_fin: row.fecha_fin,
+                        activo: row.activo === 1,
                         persona: {
                             id: row.persona_id,
                             nombre: row.persona_nombre,
-                            email: row.persona_email
+                            primer_apellido: row.primer_apellido,
+                            segundo_apellido: row.segundo_apellido,
+                            email: row.persona_email,
+                            telefono: row.telefono,
+                            puesto_trabajo: row.puesto_trabajo,
+                            observaciones: row.observaciones
                         }
                     });
                 }
             );
+        });
+    });
+});
+
+// Actualizar la membresía de un usuario en un grupo
+app.put('/api/miembros/:id', (req, res) => {
+    const { id } = req.params;
+    const { fecha_inicio, fecha_fin, activo } = req.body;
+    
+    if (!fecha_inicio && !fecha_fin && activo === undefined) {
+        return res.status(400).json({ error: 'Se requiere al menos un campo para actualizar (fecha_inicio, fecha_fin o activo)' });
+    }
+    
+    // Obtener la membresía actual
+    db.get('SELECT * FROM miembros WHERE id = ?', [id], (err, miembro) => {
+        if (err) {
+            console.error('Error al obtener la membresía:', err);
+            return res.status(500).json({ 
+                error: 'Error al obtener la membresía',
+                details: err.message 
+            });
         }
-    );
+        
+        if (!miembro) {
+            return res.status(404).json({ error: 'Membresía no encontrada' });
+        }
+        
+        // Preparar los campos a actualizar
+        let updates = [];
+        const params = [];
+        
+        if (fecha_inicio !== undefined) {
+            updates.push('fecha_inicio = ?');
+            params.push(fecha_inicio);
+        }
+        
+        if (fecha_fin !== undefined) {
+            updates.push('fecha_fin = ?');
+            params.push(fecha_fin);
+        } else if (activo !== undefined) {
+            // Si se especifica activo=false, establecer fecha_fin a la fecha actual
+            // Si activo=true, establecer fecha_fin a NULL
+            updates.push('fecha_fin = ?');
+            params.push(activo ? null : new Date().toISOString().split('T')[0]);
+        }
+        
+        // Actualizar el campo activo basado en la fecha_fin o el valor de activo proporcionado
+        if (fecha_fin !== undefined || activo !== undefined) {
+            const esActivo = activo !== undefined ? activo : (fecha_fin === null || fecha_fin === undefined);
+            updates.push('activo = ?');
+            params.push(esActivo ? 1 : 0);
+        }
+        
+        // Validar fechas si se están actualizando
+        const fechaInicio = fecha_inicio !== undefined ? fecha_inicio : miembro.fecha_inicio;
+        const fechaFin = fecha_fin !== undefined ? fecha_fin : (activo === false ? new Date().toISOString().split('T')[0] : miembro.fecha_fin);
+        
+        const validacionFechas = validarFechasMembresia(fechaInicio, fechaFin);
+        if (!validacionFechas.valido) {
+            return res.status(400).json({ error: validacionFechas.mensaje });
+        }
+        
+        // Construir la consulta de actualización
+        const updateQuery = `
+            UPDATE miembros 
+            SET ${updates.join(', ')}
+            WHERE id = ?
+        `;
+        
+        // Ejecutar la actualización
+        db.run(updateQuery, [...params, id], function(err) {
+            if (err) {
+                console.error('Error al actualizar la membresía:', err);
+                return res.status(500).json({ 
+                    error: 'Error al actualizar la membresía',
+                    details: err.message 
+                });
+            }
+            
+            if (this.changes === 0) {
+                return res.status(404).json({ error: 'Membresía no encontrada' });
+            }
+            
+            // Obtener la membresía actualizada para devolverla
+            db.get('SELECT * FROM miembros WHERE id = ?', [id], (err, miembroActualizado) => {
+                if (err) {
+                    console.error('Error al obtener la membresía actualizada:', err);
+                    // Aún así, devolver éxito con los datos que tenemos
+                    miembroActualizado = {
+                        ...miembro,
+                        fecha_inicio: fecha_inicio !== undefined ? fecha_inicio : miembro.fecha_inicio,
+                        fecha_fin: fecha_fin !== undefined ? fecha_fin : miembro.fecha_fin,
+                        activo: activo !== undefined ? (activo ? 1 : 0) : 
+                               (fecha_fin !== undefined ? (fecha_fin === null ? 1 : 0) : miembro.activo)
+                    };
+                }
+                
+                // Obtener los datos completos de la persona
+                db.get(
+                    'SELECT p.nombre as persona_nombre, p.primer_apellido, p.segundo_apellido, p.email as persona_email, p.telefono, p.puesto_trabajo, p.observaciones ' +
+                    'FROM miembros m JOIN personas p ON m.persona_id = p.id WHERE m.id = ?',
+                    [id],
+                    (err, row) => {
+                        if (err) {
+                            console.error('Error al obtener datos de la persona:', err);
+                            // Devolver solo los datos básicos si hay error
+                            return res.json({
+                                ...miembroActualizado,
+                                activo: miembroActualizado.activo === 1
+                            });
+                        }
+                        
+                        // Devolver los datos completos
+                        res.json({
+                            ...miembroActualizado,
+                            activo: miembroActualizado.activo === 1,
+                            persona: {
+                                id: miembroActualizado.persona_id,
+                                nombre: row.persona_nombre,
+                                primer_apellido: row.primer_apellido,
+                                segundo_apellido: row.segundo_apellido,
+                                email: row.persona_email,
+                                telefono: row.telefono,
+                                puesto_trabajo: row.puesto_trabajo,
+                                observaciones: row.observaciones
+                            }
+                        });
+                    }
+                );
+            });
+        });
+    });
 });
 
 // Eliminar un miembro de un grupo
@@ -862,9 +1090,11 @@ app.post('/api/reuniones/:id/asistencias', (req, res) => {
 // Inicializar la base de datos y comenzar el servidor
 const PORT = process.env.PORT || 3001;
 
-createTables();
-createTestUser();
-
-app.listen(PORT, () => {
-    console.log(`Servidor escuchando en el puerto ${PORT}`);
+// Crear tablas y luego iniciar el servidor
+createTables(() => {
+    createTestUser(() => {
+        app.listen(PORT, () => {
+            console.log(`Servidor escuchando en el puerto ${PORT}`);
+        });
+    });
 });
