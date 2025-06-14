@@ -1,0 +1,30 @@
+POST http://localhost:3001/api/reuniones
+  content-type: application/json
+
+  {
+    "fecha": "2025-06-14",
+    "hora": "10:00",
+    "ubicacion": "Casa de la Comunidad",
+    "descripcion": "Reunion de la Comunidad",
+    "grupo_id": 1
+  }
+
+###
+GET http://localhost:3001/api/reuniones
+
+###
+GET http://localhost:3001/api/usuarios
+
+###
+POST http://localhost:3001/api/usuarios
+  content-type: application/json
+
+  {
+    "nombre": "Fernando",
+    "primer_apellido": "Zamora",
+    "segundo_apellido": "Sánchez",
+    "email": "franzz2000@gmail.com",
+    "telefono": "123456789",
+    "puesto_trabajo": "Desarrollador",
+    "observaciones": "Reunion de la Comunidad"
+  }
