@@ -254,7 +254,7 @@ export const MiembrosGrupo = ({ open, onClose, grupoId, grupoNombre, onMiembroAg
                                 // Show user if they don't have an active membership in this group
                                 return !miembros.some(m => 
                                     m.persona_id === usuario.id && 
-                                    m.activo === true
+                                    !!m.activo === true
                                 );
                             })}
                             getOptionLabel={(usuario) => getNombreCompleto(usuario)}
