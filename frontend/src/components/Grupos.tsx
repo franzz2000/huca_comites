@@ -74,7 +74,7 @@ export const Grupos = () => {
 
     const cargarMiembros = useCallback(async (grupoId: number) => {
         try {
-            const response = await getMiembros(grupoId);
+            const response = await getMiembros(grupoId, true);
             setMiembros(response.data);
         } catch (error) {
             console.error('Error al cargar miembros del grupo:', error);

@@ -383,7 +383,7 @@ export const Usuarios = () => {
                                         <IconButton 
                                             onClick={() => handleEliminar(usuario.id!)} 
                                             color="error"
-                                            disabled={!usuario.id}
+                                            disabled={!usuario.id || usuario.id === 1}
                                         >
                                             <DeleteIcon />
                                         </IconButton>

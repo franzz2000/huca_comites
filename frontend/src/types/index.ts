@@ -7,7 +7,11 @@ export interface Grupo {
 export interface Usuario {
   id: number;
   nombre: string;
+  primer_apellido: string;
+  segundo_apellido: string;
   email: string;
+  es_admin: number;
+  activo: number;
 }
 
 export interface Miembro {

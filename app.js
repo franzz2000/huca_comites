@@ -1,7 +1,12 @@
+require('dotenv').config();
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const { verifyToken } = require('./middleware/auth');
 //const path = require('path');
+require('dotenv').config();
 
 // Función para validar fechas de membresía
 const validarFechasMembresia = (fechaInicio, fechaFin) => {
@@ -34,7 +39,7 @@ const db = new sqlite3.Database('./data/grupos.db', (err) => {
 });
 
 // Crear usuario de prueba si no existe
-const createTestUser = (callback) => {
+const createAdminUser = (callback) => {
     db.get('SELECT COUNT(*) as count FROM personas', [], (err, row) => {
         if (err) {
             console.error('Error al verificar usuarios existentes:', err);
@@ -44,7 +49,7 @@ const createTestUser = (callback) => {
         if (row.count === 0) {
             db.run(
                 'INSERT INTO personas (nombre, primer_apellido, email) VALUES (?, ?, ?)', 
-                ['Usuario', 'Prueba', 'usuario@example.com'],
+                ['Admin', 'User', 'admin@example.com'],
                 function(err) {
                     if (err) {
                         console.error('Error al crear usuario de prueba:', err);
@@ -64,94 +69,134 @@ const createTestUser = (callback) => {
 
 // Crear tablas
 const createTables = (callback) => {
-    db.serialize(() => {
-        // Crear tablas en orden
+    // Crear tabla de personas si no existe
+    db.run(`
+        CREATE TABLE IF NOT EXISTS personas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            primer_apellido TEXT NOT NULL,
+            segundo_apellido TEXT,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT,
+            es_admin INTEGER DEFAULT 0, 
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            telefono TEXT,
+            puesto_trabajo TEXT,
+            observaciones TEXT,
+            fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+            activo BOOLEAN DEFAULT 1
+        )
+    `, (err) => {
+        if (err) return callback(err);
+        
+        // Crear tabla de grupos
         db.run(`
             CREATE TABLE IF NOT EXISTS grupos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nombre TEXT NOT NULL,
-                descripcion TEXT
-            )`);
-
-        db.run(`
-            CREATE TABLE IF NOT EXISTS personas (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre TEXT NOT NULL,
-                primer_apellido TEXT NOT NULL,
-                segundo_apellido TEXT,
-                email TEXT UNIQUE NOT NULL,
-                telefono TEXT,
-                puesto_trabajo TEXT,
-                observaciones TEXT
-            )`);
-
-        db.run(`
-            CREATE TABLE IF NOT EXISTS miembros (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                persona_id INTEGER,
-                grupo_id INTEGER,
-                fecha_inicio DATE,
-                fecha_fin DATE,
-                activo BOOLEAN DEFAULT 1,
-                FOREIGN KEY (persona_id) REFERENCES personas(id),
-                FOREIGN KEY (grupo_id) REFERENCES grupos(id)
-            )`);
-
-        // Asegurar que la columna activo existe
-        db.get("SELECT COUNT(*) as count FROM pragma_table_info('miembros') WHERE name = 'activo'", (err, row) => {
-            if (err) {
-                console.error('Error al verificar columna activo:', err);
-                return callback ? callback(err) : null;
-            }
+                descripcion TEXT,
+                fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `, (err) => {
+            if (err) return callback(err);
             
-            if (row.count === 0) {
-                db.run("ALTER TABLE miembros ADD COLUMN activo BOOLEAN DEFAULT 1", (err) => {
-                    if (err) console.error('Error al agregar columna activo:', err);
-                    createRemainingTables(callback);
+            // Crear tabla de miembros
+            db.run(`
+                CREATE TABLE IF NOT EXISTS miembros (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    grupo_id INTEGER NOT NULL,
+                    persona_id INTEGER NOT NULL,
+                    fecha_inicio DATE NOT NULL,
+                    fecha_fin DATE,
+                    activo BOOLEAN DEFAULT 1,
+                    FOREIGN KEY (grupo_id) REFERENCES grupos (id) ON DELETE CASCADE,
+                    FOREIGN KEY (persona_id) REFERENCES personas (id) ON DELETE CASCADE,
+                    UNIQUE (grupo_id, persona_id, fecha_inicio)
+                )
+            `, (err) => {
+                if (err) return callback(err);
+                
+                // Crear tabla de reuniones
+                db.run(`
+                    CREATE TABLE IF NOT EXISTS reuniones (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        grupo_id INTEGER NOT NULL,
+                        fecha DATE NOT NULL,
+                        hora TIME NOT NULL,
+                        ubicacion TEXT,
+                        descripcion TEXT,
+                        fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (grupo_id) REFERENCES grupos (id) ON DELETE CASCADE
+                    )
+                `, (err) => {
+                    if (err) return callback(err);
+                    
+                    // Crear tabla de asistencias
+                    db.run(`
+                        CREATE TABLE IF NOT EXISTS asistencias (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            reunion_id INTEGER NOT NULL,
+                            persona_id INTEGER NOT NULL,
+                            asistio BOOLEAN DEFAULT 0,
+                            fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (reunion_id) REFERENCES reuniones (id) ON DELETE CASCADE,
+                            FOREIGN KEY (persona_id) REFERENCES personas (id) ON DELETE CASCADE,
+                            UNIQUE (reunion_id, persona_id)
+                        )
+                    `, callback);
                 });
-            } else {
-                createRemainingTables(callback);
-            }
+            });
         });
     });
 };
 
-// Crear el resto de las tablas después de verificar/crear la columna activo
-const createRemainingTables = (callback) => {
-    db.serialize(() => {
-        db.run(`
-            CREATE TABLE IF NOT EXISTS reuniones (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                grupo_id INTEGER NOT NULL,
-                fecha TEXT NOT NULL,
-                hora TEXT NOT NULL,
-                ubicacion TEXT NOT NULL,
-                descripcion TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE
-            )`);
-
-        db.run(`
-            CREATE TABLE IF NOT EXISTS asistencias (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                reunion_id INTEGER NOT NULL,
-                persona_id INTEGER NOT NULL,
-                estado TEXT NOT NULL CHECK(estado IN ('asistio', 'no_asistio', 'excusa')),
-                observaciones TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (reunion_id) REFERENCES reuniones(id) ON DELETE CASCADE,
-                FOREIGN KEY (persona_id) REFERENCES personas(id) ON DELETE CASCADE,
-                UNIQUE(reunion_id, persona_id)
-            )`);
-
-        console.log('Todas las tablas han sido creadas/verificadas');
-        if (callback) callback(null);
+// Authentication routes
+app.post('/api/auth/login', express.json(), (req, res) => {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Correo electrónico y contraseña son requeridos' });
+    }
+    
+    db.get('SELECT * FROM personas WHERE email = ?', [email], async (err, user) => {
+        if (err) {
+            console.error('Login error:', err);
+            return res.status(500).json({ error: 'Error en la autenticación' });
+        }
+        
+        if (!user) {
+            return res.status(401).json({ error: 'Credenciales inválidas' });
+        }
+        
+        const isPasswordValid = await bcrypt.compare(password, user.password || '');
+        
+        if (!isPasswordValid) {
+            return res.status(401).json({ error: 'Credenciales inválidas' });
+        }
+        
+        const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET || 'your_jwt_secret_key', {
+            expiresIn: '1d'
+        });
+        
+        res.json({ 
+            auth: true, 
+            token, 
+            user: {
+                id: user.id,
+                nombre: user.nombre,
+                email: user.email,
+                primer_apellido: user.primer_apellido,
+                segundo_apellido: user.segundo_apellido
+            }
+        });
     });
-};
+});
 
-// Rutas API
+// Protected routes
+app.use('/api', verifyToken);
+
+// API Routes
 app.get('/api/grupos', (req, res) => {
     db.all('SELECT * FROM grupos', [], (err, rows) => {
         if (err) {
@@ -412,20 +457,39 @@ app.put('/api/usuarios/:id', (req, res) => {
 app.delete('/api/usuarios/:id', (req, res) => {
     const { id } = req.params;
     
-    db.run('DELETE FROM personas WHERE id = ?', [id], function(err) {
+    // Primero verificamos si el usuario existe y si es administrador
+    db.get('SELECT id, es_admin FROM personas WHERE id = ?', [id], (err, user) => {
         if (err) {
-            console.error('Error al eliminar usuario:', err);
+            console.error('Error al verificar usuario:', err);
             return res.status(500).json({ 
-                error: 'Error al eliminar el usuario',
+                error: 'Error al verificar el usuario',
                 details: err.message 
             });
         }
         
-        if (this.changes === 0) {
+        if (!user) {
             return res.status(404).json({ error: 'Usuario no encontrado' });
         }
         
-        res.status(200).json({ message: 'Usuario eliminado correctamente' });
+        // Verificar si el usuario es administrador (es_admin = 1)
+        if (user.es_admin === 1) {
+            return res.status(403).json({ 
+                error: 'No se puede eliminar un usuario administrador' 
+            });
+        }
+        
+        // Si no es administrador, proceder con la eliminación
+        db.run('DELETE FROM personas WHERE id = ?', [id], function(err) {
+            if (err) {
+                console.error('Error al eliminar usuario:', err);
+                return res.status(500).json({ 
+                    error: 'Error al eliminar el usuario',
+                    details: err.message 
+                });
+            }
+            
+            res.status(200).json({ message: 'Usuario eliminado correctamente' });
+        });
     });
 });
 
@@ -445,9 +509,9 @@ app.get('/api/miembros', (req, res) => {
     // Por defecto, mostrar solo miembros activos (sin fecha_fin o con fecha_fin en el futuro)
     // a menos que se especifique activo=false
     if (activo === undefined || activo === 'true') {
-        conditions.push('(m.fecha_fin IS NULL OR m.fecha_fin >= date("now"))');
+        conditions.push('m.activo = 1');
     } else if (activo === 'false') {
-        conditions.push('m.fecha_fin IS NOT NULL AND m.fecha_fin < date("now")');
+        conditions.push('m.activo = 0');
     }
     
     if (conditions.length > 0) {
@@ -1092,7 +1156,7 @@ const PORT = process.env.PORT || 3001;
 
 // Crear tablas y luego iniciar el servidor
 createTables(() => {
-    createTestUser(() => {
+    createAdminUser(() => {
         app.listen(PORT, () => {
             console.log(`Servidor escuchando en el puerto ${PORT}`);
         });

@@ -30,6 +30,7 @@ POST http://localhost:3001/api/usuarios
   }
 
 ###
-GET http://localhost:3001/api/miembros
+GET http://localhost:3001/api/miembros?grupoId=1&activo=true
+
 
 
