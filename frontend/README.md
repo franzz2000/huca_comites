@@ -1,54 +1,49 @@
-# React + TypeScript + Vite
+# HUCA Comités
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Se trata de una aplicación hecha para gestionar grupos (Comités).
 
-Currently, two official plugins are available:
+## Características
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Gestiona grupos, de manera que cada grupo tiene miembros y reuniones.
 
-## Expanding the ESLint configuration
+También permite gestionar usuarios, que pueden ser miembros de varios grupos.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+También permite gestionar asistencias, de manera que se pueda ver quiénes asistieron a una reunión y quiénes no.
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
-```
+## Tecnologías
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Backend:
+- Node.js
+- Express
+- SQLite
+- bcryptjs
+- cors
+- dotenv
+- jsonwebtoken
+- sqlite3
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Frontend:
+- React
+- TypeScript
+- Vite
+- Material-UI
+- Axios
+- React Router
+- React Date Picker
+- React Icons
+- date-fns
 
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
+## Instalación
+
+Backend:
+- Clonar el repositorio
+- Instalar dependencias: npm install
+- Configurar variables de entorno en .env
+- Iniciar el servidor: npm run dev
+
+Frontend:
+- Clonar el repositorio
+- Instalar dependencias: npm install
+- Configurar variables de entorno en .env
+- Iniciar el servidor: npm run dev
+
