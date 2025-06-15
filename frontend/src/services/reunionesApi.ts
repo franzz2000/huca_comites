@@ -3,13 +3,44 @@ import type { Reunion, Asistencia } from '../types';
 
 const API_URL = 'http://localhost:3001/api';
 
+// Función para obtener los headers con el token de autenticación
+const getAuthHeaders = () => {
+  try {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
+      console.warn('No se encontró el usuario en localStorage');
+      return { 'Content-Type': 'application/json' };
+    }
+    
+    const user = JSON.parse(userStr);
+    const token = user?.token;
+    
+    if (!token) {
+      console.warn('No se encontró el token en el objeto del usuario');
+      return { 'Content-Type': 'application/json' };
+    }
+    
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+  } catch (error) {
+    console.error('Error al obtener el token de autenticación:', error);
+    return { 'Content-Type': 'application/json' };
+  }
+};
+
 export const getReunionesByGrupo = async (grupoId: number): Promise<Reunion[]> => {
-  const response = await axios.get(`${API_URL}/reuniones?grupoId=${grupoId}`);
+  const response = await axios.get(`${API_URL}/reuniones?grupoId=${grupoId}`, {
+    headers: getAuthHeaders()
+  });
   return response.data;
 };
 
 export const getReunion = async (id: number): Promise<Reunion> => {
-  const response = await axios.get(`${API_URL}/reuniones/${id}`);
+  const response = await axios.get(`${API_URL}/reuniones/${id}`, {
+    headers: getAuthHeaders()
+  });
   return response.data;
 };
 
@@ -18,7 +49,7 @@ interface ApiError extends Error {
     data?: {
       error?: string;
       message?: string;
-      [key: string]: string | number | boolean | null | undefined; // Allow other properties with specific types
+      [key: string]: string | number | boolean | null | undefined;
     };
     status?: number;
     statusText?: string;
@@ -32,16 +63,12 @@ export const createReunion = async (reunion: Omit<Reunion, 'id'>): Promise<Reuni
     console.log('Sending request to create reunion:', {
       url: `${API_URL}/reuniones`,
       data: reunion,
-      headers: {
-        'Content-Type': 'application/json',
-      }
+      headers: getAuthHeaders()
     });
     
     const response = await axios.post(`${API_URL}/reuniones`, reunion, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      validateStatus: () => true, // Don't throw for any status code
+      headers: getAuthHeaders(),
+      validateStatus: () => true,
     });
     
     console.log('Create reunion response:', {
@@ -74,26 +101,41 @@ export const createReunion = async (reunion: Omit<Reunion, 'id'>): Promise<Reuni
       stack: err.stack
     });
     
-    // Improve error message for network errors
     if (err.message === 'Network Error') {
       throw new Error('No se pudo conectar al servidor. Verifica tu conexión a internet.');
     }
     
-    // Re-throw with a more descriptive message
+    if (err.response?.status === 401) {
+      // Token inválido o expirado
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+      throw new Error('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.');
+    }
+    
     throw new Error(err.response?.data?.message || err.message || 'Error desconocido al crear la reunión');
   }
 };
 
 export const updateReunion = async (id: number, reunion: Partial<Reunion>): Promise<Reunion> => {
-  const response = await axios.put(`${API_URL}/reuniones/${id}`, reunion);
+  const response = await axios.put(
+    `${API_URL}/reuniones/${id}`, 
+    reunion,
+    { headers: getAuthHeaders() }
+  );
   return response.data;
 };
 
 export const deleteReunion = async (id: number): Promise<void> => {
-  await axios.delete(`${API_URL}/reuniones/${id}`);
+  await axios.delete(`${API_URL}/reuniones/${id}`, {
+    headers: getAuthHeaders()
+  });
 };
 
 export const saveAsistencias = async (reunionId: number, asistencias: Omit<Asistencia, 'id' | 'reunion_id'>[]): Promise<Asistencia[]> => {
-  const response = await axios.post(`${API_URL}/reuniones/${reunionId}/asistencias`, { asistencias });
+  const response = await axios.post(
+    `${API_URL}/reuniones/${reunionId}/asistencias`, 
+    { asistencias },
+    { headers: getAuthHeaders() }
+  );
   return response.data;
 };

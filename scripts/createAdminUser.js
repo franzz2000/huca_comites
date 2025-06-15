@@ -18,57 +18,59 @@ const adminUser = {
   activo: 0 // 1 for active, 0 for inactive
 };
 
-// Hash the password
-bcrypt.hash(adminUser.password, 10, (err, hashedPassword) => {
-  if (err) {
-    console.error('Error hashing password:', err);
-    return;
-  }
+exports.createAdminUser = (callback) => {
+  // Hash the password
+  bcrypt.hash(adminUser.password, 10, (err, hashedPassword) => {
+    if (err) {
+      console.error('Error hashing password:', err);
+      return;
+    }
 
-  // Check if users table exists, if not create it
-  db.serialize(() => {
-    // Check if admin user already exists
-    db.get('SELECT * FROM personas WHERE email = ?', [adminUser.email], (err, row) => {
-      if (err) {
-        console.error('Error checking for existing admin:', err);
-        db.close();
-        return;
-      }
+    // Check if users table exists, if not create it
+    db.serialize(() => {
+      // Check if admin user already exists
+      db.get('SELECT * FROM personas WHERE email = ?', [adminUser.email], (err, row) => {
+        if (err) {
+          console.error('Error checking for existing admin:', err);
+          db.close();
+          return;
+        }
 
-      if (row) {
-        console.log('Admin user already exists. Updating password...');
-        // Update existing admin user
-        db.run(
-          'UPDATE personas SET nombre = ?, primer_apellido = ?, password = ?, es_admin = ?, updated_at = CURRENT_TIMESTAMP, puesto_trabajo = ?, activo = ? WHERE email = ?',
-          [adminUser.nombre, adminUser.primer_apellido, hashedPassword, adminUser.es_admin, adminUser.puesto_trabajo, adminUser.activo, adminUser.email],
-          function (err) {
-            if (err) {
-              console.error('Error updating admin user:', err);
-            } else {
-              console.log(`Admin user updated successfully with ID: ${this.lastID}`);
-              console.log(`Email: ${adminUser.email}`);
-              console.log('Password: [the password you provided]');
+        if (row) {
+          console.log('Admin user already exists. Updating password...');
+          // Update existing admin user
+          db.run(
+            'UPDATE personas SET nombre = ?, primer_apellido = ?, password = ?, es_admin = ?, updated_at = CURRENT_TIMESTAMP, puesto_trabajo = ?, activo = ? WHERE email = ?',
+            [adminUser.nombre, adminUser.primer_apellido, hashedPassword, adminUser.es_admin, adminUser.puesto_trabajo, adminUser.activo, adminUser.email],
+            function (err) {
+              if (err) {
+                console.error('Error updating admin user:', err);
+              } else {
+                console.log(`Admin user updated successfully with ID: ${this.lastID}`);
+                console.log(`Email: ${adminUser.email}`);
+                console.log('Password: [the password you provided]');
+              }
+              db.close();
             }
-            db.close();
-          }
-        );
-      } else {
-        // Insert new admin user
-        db.run(
-          'INSERT INTO personas (nombre, primer_apellido, email, password, es_admin) VALUES (?, ?, ?, ?, ?)',
-          [adminUser.nombre, adminUser.primer_apellido, adminUser.email, hashedPassword, adminUser.es_admin],
-          function (err) {
-            if (err) {
-              console.error('Error creating admin user:', err);
-            } else {
-              console.log(`Admin user created successfully with ID: ${this.lastID}`);
-              console.log(`Email: ${adminUser.email}`);
-              console.log('Password: [the password you provided]');
+          );
+        } else {
+          // Insert new admin user
+          db.run(
+            'INSERT INTO personas (nombre, primer_apellido, email, password, es_admin) VALUES (?, ?, ?, ?, ?)',
+            [adminUser.nombre, adminUser.primer_apellido, adminUser.email, hashedPassword, adminUser.es_admin],
+            function (err) {
+              if (err) {
+                console.error('Error creating admin user:', err);
+              } else {
+                console.log(`Admin user created successfully with ID: ${this.lastID}`);
+                console.log(`Email: ${adminUser.email}`);
+                console.log('Password: [the password you provided]');
+              }
+              db.close();
             }
-            db.close();
-          }
-        );
-      }
+          );
+        }
+      });
     });
   });
-});
+}

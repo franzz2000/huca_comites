@@ -13,6 +13,8 @@ export interface Grupo {
     id?: number;
     nombre: string;
     descripcion?: string | null;
+    totalReuniones?: number;
+    asistenciasUsuario?: number;
 }
 
 export interface Miembro {
@@ -39,7 +41,10 @@ export interface Asistencia {
     id?: number;
     reunion_id: number;
     persona_id: number;
-    estado: 'asistio' | 'no_asistio' | 'excusa';
-    observaciones?: string | null;
+    asistio: boolean;
+    estado?: string;
+    observaciones?: string;
+    fecha_creacion?: string;
+    updated_at?: string;
     persona?: Usuario;
 }

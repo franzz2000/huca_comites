@@ -20,14 +20,19 @@ import {
     Alert,
     Tabs,
     Tab,
+    LinearProgress,
+    Tooltip,
+    Chip,
 } from '@mui/material';
 import { Delete as DeleteIcon, Edit as EditIcon, Add as AddIcon, People as PeopleIcon, Search as SearchIcon, Event as EventIcon, Group as GroupIcon } from '@mui/icons-material';
-import { getGrupos, createGrupo, updateGrupo, deleteGrupo, getMiembros } from '../services/api';
+import { getGrupos, createGrupo, updateGrupo, deleteGrupo, getMiembros, getReuniones, getAsistencias } from '../services/api';
 import { MiembrosGrupo } from './MiembrosGrupo';
 import { Reuniones } from './Reuniones';
 import type { Grupo, Miembro } from '../types';
+import { useAuth } from '../contexts';
 
 export const Grupos = () => {
+    const { user } = useAuth();
     const [grupos, setGrupos] = useState<Grupo[]>([]);
     const [grupoEditando, setGrupoEditando] = useState<Grupo | null>(null);
     const [nuevoGrupo, setNuevoGrupo] = useState<Omit<Grupo, 'id'>>({ 
@@ -45,6 +50,7 @@ export const Grupos = () => {
     const [filtroBusqueda, setFiltroBusqueda] = useState('');
     const [tabValue, setTabValue] = useState(0);
     const [miembros, setMiembros] = useState<Miembro[]>([]);
+    const [cargandoEstadisticas, setCargandoEstadisticas] = useState<Record<number, boolean>>({});
 
     // Filtrar grupos según el término de búsqueda
     const gruposFiltrados = grupos.filter(grupo => {
@@ -58,10 +64,57 @@ export const Grupos = () => {
         );
     });
 
+    const cargarEstadisticasGrupo = useCallback(async (grupoId: number) => {
+        if (!user?.id) return;
+        
+        setCargandoEstadisticas(prev => ({ ...prev, [grupoId]: true }));
+        
+        try {
+            // Obtener todas las reuniones del grupo
+            const responseReuniones = await getReuniones(grupoId);
+            const reuniones = responseReuniones.data || [];
+            
+            // Contar asistencias del usuario
+            let asistenciasUsuario = 0;
+            
+            for (const reunion of reuniones) {
+                const responseAsistencias = await getAsistencias(reunion.id!);
+                const asistencia = responseAsistencias.data?.find(a => a.persona_id === user.id);
+                if (asistencia?.asistio) {
+                    asistenciasUsuario++;
+                }
+            }
+            
+            // Actualizar el grupo con las estadísticas
+            setGrupos(prev => prev.map(g => 
+                g.id === grupoId 
+                    ? { 
+                        ...g, 
+                        totalReuniones: reuniones.length,
+                        asistenciasUsuario 
+                    } 
+                    : g
+            ));
+        } catch (error) {
+            console.error('Error al cargar estadísticas del grupo:', error);
+        } finally {
+            setCargandoEstadisticas(prev => ({ ...prev, [grupoId]: false }));
+        }
+    }, [user?.id]);
+
     const cargarGrupos = useCallback(async () => {
         try {
             const response = await getGrupos();
-            setGrupos(response.data);
+            setGrupos(response.data || []);
+            
+            // Cargar estadísticas para cada grupo
+            if (response.data && user?.id) {
+                response.data.forEach(grupo => {
+                    if (grupo.id) {
+                        cargarEstadisticasGrupo(grupo.id);
+                    }
+                });
+            }
         } catch (error) {
             console.error('Error al cargar grupos:', error);
             setSnackbar({
@@ -70,7 +123,7 @@ export const Grupos = () => {
                 severity: 'error'
             });
         }
-    }, []);
+    }, [cargarEstadisticasGrupo, user?.id]);
 
     const cargarMiembros = useCallback(async (grupoId: number) => {
         try {
@@ -233,9 +286,9 @@ export const Grupos = () => {
                     <Table>
                         <TableHead>
                             <TableRow>
-                                <TableCell>ID</TableCell>
                                 <TableCell>Nombre</TableCell>
                                 <TableCell>Descripción</TableCell>
+                                <TableCell align="center">Asistencia</TableCell>
                                 <TableCell align="right">Acciones</TableCell>
                             </TableRow>
                         </TableHead>
@@ -263,33 +316,58 @@ export const Grupos = () => {
                                         }}
                                         sx={{ cursor: 'pointer' }}
                                     >
-                                        <TableCell>{grupo.id}</TableCell>
                                         <TableCell>{grupo.nombre}</TableCell>
-                                        <TableCell>{grupo.descripcion || 'Sin descripción'}</TableCell>
+                                        <TableCell>{grupo.descripcion || '-'}</TableCell>
+                                        <TableCell align="center">
+                                            {cargandoEstadisticas[grupo.id!] ? (
+                                                <LinearProgress />
+                                            ) : grupo.totalReuniones !== undefined && grupo.asistenciasUsuario !== undefined ? (
+                                                <Tooltip title={`${grupo.asistenciasUsuario} de ${grupo.totalReuniones} reuniones`}>
+                                                    <Box>
+                                                        <Chip 
+                                                            label={`${grupo.asistenciasUsuario}/${grupo.totalReuniones}`}
+                                                            color={
+                                                                grupo.totalReuniones === 0 ? 'default' :
+                                                                grupo.asistenciasUsuario === grupo.totalReuniones ? 'success' :
+                                                                grupo.asistenciasUsuario > 0 ? 'warning' : 'error'
+                                                            }
+                                                            size="small"
+                                                        />
+                                                        {grupo.totalReuniones > 0 && (
+                                                            <Box sx={{ width: '100%', mt: 1 }}>
+                                                                <LinearProgress 
+                                                                    variant="determinate" 
+                                                                    value={(grupo.asistenciasUsuario / grupo.totalReuniones) * 100} 
+                                                                    color={
+                                                                        grupo.asistenciasUsuario === grupo.totalReuniones ? 'success' :
+                                                                        grupo.asistenciasUsuario > 0 ? 'warning' : 'error'
+                                                                    }
+                                                                />
+                                                            </Box>
+                                                        )}
+                                                    </Box>
+                                                </Tooltip>
+                                            ) : '-'}
+                                        </TableCell>
                                         <TableCell align="right">
                                             <IconButton 
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleOpenMiembrosDialog(grupo);
-                                                }}
+                                                onClick={() => handleOpenMiembrosDialog(grupo)}
+                                                color="primary"
+                                                title="Ver miembros"
                                             >
                                                 <PeopleIcon />
                                             </IconButton>
                                             <IconButton 
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleEditar(grupo);
-                                                }}
+                                                onClick={() => handleEditar(grupo)}
+                                                color="primary"
+                                                title="Editar grupo"
                                             >
                                                 <EditIcon />
                                             </IconButton>
                                             <IconButton 
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (grupo.id) handleEliminar(grupo.id);
-                                                }} 
+                                                onClick={() => handleEliminar(grupo.id!)}
                                                 color="error"
-                                                disabled={!grupo.id}
+                                                title="Eliminar grupo"
                                             >
                                                 <DeleteIcon />
                                             </IconButton>

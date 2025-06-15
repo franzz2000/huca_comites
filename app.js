@@ -5,6 +5,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { verifyToken } = require('./middleware/auth');
+const { createAdminUser } = require('./scripts/createAdminUser');
 //const path = require('path');
 require('dotenv').config();
 
@@ -37,35 +38,6 @@ const db = new sqlite3.Database('./data/grupos.db', (err) => {
         console.log('Conectado a la base de datos SQLite');
     }
 });
-
-// Crear usuario de prueba si no existe
-const createAdminUser = (callback) => {
-    db.get('SELECT COUNT(*) as count FROM personas', [], (err, row) => {
-        if (err) {
-            console.error('Error al verificar usuarios existentes:', err);
-            return callback ? callback(err) : null;
-        }
-        
-        if (row.count === 0) {
-            db.run(
-                'INSERT INTO personas (nombre, primer_apellido, email) VALUES (?, ?, ?)', 
-                ['Admin', 'User', 'admin@example.com'],
-                function(err) {
-                    if (err) {
-                        console.error('Error al crear usuario de prueba:', err);
-                        return callback ? callback(err) : null;
-                    } else {
-                        console.log('Usuario de prueba creado con ID:', this.lastID);
-                        return callback ? callback(null) : null;
-                    }
-                }
-            );
-        } else {
-            console.log('Ya existen usuarios en la base de datos');
-            return callback ? callback(null) : null;
-        }
-    });
-};
 
 // Crear tablas
 const createTables = (callback) => {
@@ -139,12 +111,26 @@ const createTables = (callback) => {
                             reunion_id INTEGER NOT NULL,
                             persona_id INTEGER NOT NULL,
                             asistio BOOLEAN DEFAULT 0,
+                            estado TEXT DEFAULT 'no_asistio',
+                            observaciones TEXT,
                             fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                             FOREIGN KEY (reunion_id) REFERENCES reuniones (id) ON DELETE CASCADE,
                             FOREIGN KEY (persona_id) REFERENCES personas (id) ON DELETE CASCADE,
                             UNIQUE (reunion_id, persona_id)
                         )
-                    `, callback);
+                    `, (err) => {
+                        if (err) return callback(err);
+                        
+                        // Agregar la columna estado si no existe
+                        db.run(`
+                            ALTER TABLE asistencias 
+                            ADD COLUMN estado TEXT DEFAULT 'no_asistio'
+                        `, (err) => {
+                            // Ignorar el error si la columna ya existe
+                            callback();
+                        });
+                    });
                 });
             });
         });
