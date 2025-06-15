@@ -93,9 +93,10 @@ export const deleteReunion = (id: number): Promise<ApiResponse<void>> =>
 
 // Asistencia
 export const getAsistencias = (reunionId: number): Promise<ApiResponse<Asistencia[]>> => 
-    api.get(`/api/reuniones/${reunionId}/asistencia`);
+    api.get(`/api/reuniones/${reunionId}/asistencias`);
+
 export const updateAsistencia = (reunionId: number, data: { persona_id: number; asistio: boolean }[]): Promise<ApiResponse<Asistencia[]>> => 
-    api.post(`/api/reuniones/${reunionId}/asistencia`, data);
+    api.post(`/api/reuniones/${reunionId}/asistencias`, data);
 
 // Obtener estadísticas de asistencia de un usuario en un grupo
 export const getEstadisticasAsistencia = async (usuarioId: number, grupoId: number) => {
