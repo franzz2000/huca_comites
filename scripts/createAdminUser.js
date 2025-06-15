@@ -70,6 +70,8 @@ exports.createAdminUser = (callback) => {
             }
           );
         }
+        // Ignorar el error si la columna ya existe
+        callback();
       });
     });
   });
