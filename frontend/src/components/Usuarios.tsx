@@ -21,6 +21,7 @@ import {
     InputAdornment,
     Chip,
     CircularProgress,
+    LinearProgress
 } from '@mui/material';
 import { 
     Add as AddIcon, 
@@ -31,16 +32,23 @@ import {
     CheckCircle as CheckCircleIcon,
     Cancel as CancelIcon
 } from '@mui/icons-material';
-import { getUsuarios, createUsuario, updateUsuario, deleteUsuario, getMiembros, getGrupos, updateMiembro } from '../services/api'; // Add updateMiembro to imports
+import { getUsuarios, createUsuario, updateUsuario, deleteUsuario, getMiembros, getGrupos, updateMiembro, getEstadisticasAsistencia } from '../services/api'; 
 import type { Usuario, Miembro, Grupo } from '../types';
-
-// Using the imported Grupo type from types.ts
 
 interface GrupoUsuario extends Omit<Miembro, 'fecha_inicio' | 'fecha_fin'> {
     grupo_nombre: string;
-    fecha_inicio: string;  // This is now guaranteed to be defined
+    fecha_inicio: string;  
     fecha_fin: string | null;
     activo: boolean;
+    estadisticas?: EstadisticasAsistencia;
+    cargandoEstadisticas?: boolean;
+}
+
+interface EstadisticasAsistencia {
+    totalReuniones: number;
+    asistencias: number;
+    excusas: number;
+    inasistencias: number;
 }
 
 export const Usuarios = () => {
@@ -71,7 +79,6 @@ export const Usuarios = () => {
         severity: 'info' 
     });
 
-    // Filtrar usuarios según el término de búsqueda
     const usuariosFiltrados = usuarios.filter(usuario => {
         const busqueda = filtroBusqueda.toLowerCase();
         const nombreCompleto = `${usuario.nombre || ''} ${usuario.primer_apellido || ''} ${usuario.segundo_apellido || ''}`.toLowerCase();
@@ -115,15 +122,12 @@ export const Usuarios = () => {
         
         try {
             setCargandoGrupos(true);
-            // Primero obtenemos todos los grupos
             const gruposResponse = await getGrupos();
             const gruposData: Grupo[] = gruposResponse.data;
             
-            // Obtenemos todas las membresías del usuario, incluyendo las inactivas
             const response = await getMiembros(undefined, undefined);
             const miembros = response.data.filter((m: Miembro) => m.persona_id === usuarioId);
             
-            // Mapear los datos para incluir el nombre del grupo
             const grupos: GrupoUsuario[] = miembros
                 .filter((m): m is Miembro & { fecha_inicio: string } => !!m.fecha_inicio)
                 .map((m) => {
@@ -204,7 +208,6 @@ export const Usuarios = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        // Validar campos requeridos
         if (!nuevoUsuario.nombre || !nuevoUsuario.primer_apellido || !nuevoUsuario.email) {
             setSnackbar({ 
                 open: true, 
@@ -287,7 +290,6 @@ export const Usuarios = () => {
                 fecha_fin: fechasEditadas.fecha_fin || null
             });
             
-            // Actualizar la lista de grupos del usuario
             if (usuarioEditando?.id) {
                 await cargarGruposUsuario(usuarioEditando.id);
             }
@@ -306,6 +308,41 @@ export const Usuarios = () => {
             [campo]: valor || null
         }));
     };
+
+    const cargarEstadisticasGrupo = useCallback(async (usuarioId: number, grupo: GrupoUsuario) => {
+        try {
+            setGruposUsuario(prev => prev.map(g => 
+                g.grupo_id === grupo.grupo_id ? { ...g, cargandoEstadisticas: true } : g
+            ));
+            
+            const estadisticas = await getEstadisticasAsistencia(usuarioId, grupo.grupo_id);
+            
+            setGruposUsuario(prev => prev.map(g => 
+                g.grupo_id === grupo.grupo_id 
+                    ? { 
+                        ...g, 
+                        estadisticas,
+                        cargandoEstadisticas: false 
+                      } 
+                    : g
+            ));
+        } catch (error) {
+            console.error('Error al cargar estadísticas:', error);
+            setGruposUsuario(prev => prev.map(g => 
+                g.grupo_id === grupo.grupo_id ? { ...g, cargandoEstadisticas: false } : g
+            ));
+        }
+    }, []);
+
+    useEffect(() => {
+        if (usuarioEditando && gruposUsuario.length > 0) {
+            gruposUsuario.forEach(grupo => {
+                if (usuarioEditando.id && grupo.activo && !grupo.estadisticas && !grupo.cargandoEstadisticas) {
+                    cargarEstadisticasGrupo(usuarioEditando.id, grupo);
+                }
+            });
+        }
+    }, [usuarioEditando, gruposUsuario, cargarEstadisticasGrupo]);
 
     return (
         <Box sx={{ p: 3 }}>
@@ -391,216 +428,207 @@ export const Usuarios = () => {
                                 </TableRow>
                             ))
                         )}
-                </TableBody>
-            </Table>
-        </TableContainer>
+                    </TableBody>
+                </Table>
+            </TableContainer>
 
-        <Dialog 
-            open={openDialog} 
-            onClose={handleCloseDialog} 
-            maxWidth="md" 
-            fullWidth
-            scroll="paper"
-        >
-            <form onSubmit={handleSubmit}>
-                <DialogTitle>
-                    {usuarioEditando ? 'Editar Usuario' : 'Nuevo Usuario'}
-                </DialogTitle>
-                <DialogContent dividers>
-                    <Box sx={{ mt: 2, display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
-                        <TextField
-                            fullWidth
-                            label="Nombre"
-                            name="nombre"
-                            value={nuevoUsuario.nombre}
-                            onChange={handleInputChange}
-                            margin="normal"
-                            required
-                        />
-                        <TextField
-                            fullWidth
-                            label="Primer Apellido"
-                            name="primer_apellido"
-                            value={nuevoUsuario.primer_apellido}
-                            onChange={handleInputChange}
-                            margin="normal"
-                            required
-                        />
-                        <TextField
-                            fullWidth
-                            label="Segundo Apellido"
-                            name="segundo_apellido"
-                            value={nuevoUsuario.segundo_apellido || ''}
-                            onChange={handleInputChange}
-                            margin="normal"
-                        />
-                        <TextField
-                            fullWidth
-                            label="Email"
-                            name="email"
-                            type="email"
-                            value={nuevoUsuario.email}
-                            onChange={handleInputChange}
-                            margin="normal"
-                            required
-                        />
-                        <TextField
-                            fullWidth
-                            label="Teléfono"
-                            name="telefono"
-                            value={nuevoUsuario.telefono || ''}
-                            onChange={handleInputChange}
-                            margin="normal"
-                        />
-                        <TextField
-                            fullWidth
-                            label="Puesto de Trabajo"
-                            name="puesto_trabajo"
-                            value={nuevoUsuario.puesto_trabajo || ''}
-                            onChange={handleInputChange}
-                            margin="normal"
-                        />
-                        <TextField
-                            fullWidth
-                            label="Observaciones"
-                            name="observaciones"
-                            value={nuevoUsuario.observaciones || ''}
-                            onChange={handleInputChange}
-                            margin="normal"
-                            multiline
-                            rows={2}
-                            sx={{ gridColumn: '1 / -1' }}
-                        />
-                    </Box>
-
-                    {usuarioEditando && (
-                        <Box mt={4}>
-                            <Box display="flex" alignItems="center" mb={2}>
-                                <GroupIcon color="primary" sx={{ mr: 1 }} />
-                                <Typography variant="h6">Grupos del Usuario</Typography>
-                            </Box>
-                            
-                            {cargandoGrupos ? (
-                                <Box display="flex" justifyContent="center" p={3}>
-                                    <CircularProgress />
-                                </Box>
-                            ) : gruposUsuario.length === 0 ? (
-                                <Alert severity="info">El usuario no pertenece a ningún grupo.</Alert>
-                            ) : (
-                                <TableContainer component={Paper} variant="outlined">
-                                    <Table size="small">
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell>Grupo</TableCell>
-                                                <TableCell>Fecha Inicio</TableCell>
-                                                <TableCell>Fecha Fin</TableCell>
-                                                <TableCell>Estado</TableCell>
-                                                <TableCell>Acciones</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {gruposUsuario.map((grupo) => (
-                                                <TableRow key={`${grupo.id}-${grupo.grupo_id}`}>
-                                                    <TableCell>{grupo.grupo_nombre}</TableCell>
-                                                    <TableCell>
-                                                        {editandoMiembroId === grupo.id ? (
-                                                            <TextField
-                                                                type="date"
-                                                                size="small"
-                                                                value={fechasEditadas.fecha_inicio}
-                                                                onChange={(e) => handleFechaChange('fecha_inicio', e.target.value)}
-                                                                InputLabelProps={{
-                                                                    shrink: true,
-                                                                }}
-                                                            />
-                                                        ) : (
-                                                            new Date(grupo.fecha_inicio).toLocaleDateString()
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {editandoMiembroId === grupo.id ? (
-                                                            <TextField
-                                                                type="date"
-                                                                size="small"
-                                                                value={fechasEditadas.fecha_fin || ''}
-                                                                onChange={(e) => handleFechaChange('fecha_fin', e.target.value)}
-                                                                InputLabelProps={{
-                                                                    shrink: true,
-                                                                }}
-                                                            />
-                                                        ) : grupo.fecha_fin ? (
-                                                            new Date(grupo.fecha_fin).toLocaleDateString()
-                                                        ) : '-'}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {grupo.activo ? (
-                                                            <Chip 
-                                                                icon={<CheckCircleIcon />} 
-                                                                label="Activo" 
-                                                                color="success" 
-                                                                size="small"
-                                                            />
-                                                        ) : (
-                                                            <Chip 
-                                                                icon={<CancelIcon />} 
-                                                                label="Inactivo" 
-                                                                color="default" 
-                                                                size="small"
-                                                                variant="outlined"
-                                                            />
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {editandoMiembroId === grupo.id ? (
-                                                            <>
-                                                                <IconButton 
-                                                                    size="small" 
-                                                                    color="primary"
-                                                                    onClick={() => handleGuardarMiembro(grupo)}
-                                                                >
-                                                                    <CheckCircleIcon />
-                                                                </IconButton>
-                                                                <IconButton 
-                                                                    size="small" 
-                                                                    color="error"
-                                                                    onClick={handleCancelarEdicion}
-                                                                >
-                                                                    <CancelIcon />
-                                                                </IconButton>
-                                                            </>
-                                                        ) : (
-                                                            <IconButton 
-                                                                size="small" 
-                                                                onClick={() => handleEditarMiembro(grupo)}
-                                                            >
-                                                                <EditIcon />
-                                                            </IconButton>
-                                                        )}
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </TableContainer>
-                            )}
+            <Dialog 
+                open={openDialog} 
+                onClose={handleCloseDialog} 
+                maxWidth="md" 
+                fullWidth
+                scroll="paper"
+            >
+                <form onSubmit={handleSubmit}>
+                    <DialogTitle>
+                        {usuarioEditando ? 'Editar Usuario' : 'Nuevo Usuario'}
+                    </DialogTitle>
+                    <DialogContent dividers>
+                        <Box sx={{ mt: 2, display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
+                            <TextField
+                                fullWidth
+                                label="Nombre"
+                                name="nombre"
+                                value={nuevoUsuario.nombre}
+                                onChange={handleInputChange}
+                                margin="normal"
+                                required
+                            />
+                            <TextField
+                                fullWidth
+                                label="Primer Apellido"
+                                name="primer_apellido"
+                                value={nuevoUsuario.primer_apellido}
+                                onChange={handleInputChange}
+                                margin="normal"
+                                required
+                            />
+                            <TextField
+                                fullWidth
+                                label="Segundo Apellido"
+                                name="segundo_apellido"
+                                value={nuevoUsuario.segundo_apellido || ''}
+                                onChange={handleInputChange}
+                                margin="normal"
+                            />
+                            <TextField
+                                fullWidth
+                                label="Email"
+                                name="email"
+                                type="email"
+                                value={nuevoUsuario.email}
+                                onChange={handleInputChange}
+                                margin="normal"
+                                required
+                            />
+                            <TextField
+                                fullWidth
+                                label="Teléfono"
+                                name="telefono"
+                                value={nuevoUsuario.telefono || ''}
+                                onChange={handleInputChange}
+                                margin="normal"
+                            />
+                            <TextField
+                                fullWidth
+                                label="Puesto de Trabajo"
+                                name="puesto_trabajo"
+                                value={nuevoUsuario.puesto_trabajo || ''}
+                                onChange={handleInputChange}
+                                margin="normal"
+                            />
+                            <TextField
+                                fullWidth
+                                label="Observaciones"
+                                name="observaciones"
+                                value={nuevoUsuario.observaciones || ''}
+                                onChange={handleInputChange}
+                                margin="normal"
+                                multiline
+                                rows={2}
+                                sx={{ gridColumn: '1 / -1' }}
+                            />
                         </Box>
-                    )}
-                </DialogContent>
-                <DialogActions sx={{ p: 2 }}>
-                    <Button onClick={handleCloseDialog} variant="outlined">
-                        Cancelar
-                    </Button>
-                    <Button 
-                        type="submit" 
-                        variant="contained" 
-                        color="primary"
-                        disabled={cargandoGrupos}
-                    >
-                        {usuarioEditando ? 'Actualizar' : 'Crear'}
-                    </Button>
-                </DialogActions>
-            </form>
-        </Dialog>
+
+                        {usuarioEditando && (
+                            <Box mt={4}>
+                                <Box display="flex" alignItems="center" mb={2}>
+                                    <GroupIcon color="primary" sx={{ mr: 1 }} />
+                                    <Typography variant="h6">Grupos del Usuario</Typography>
+                                </Box>
+                                
+                                {cargandoGrupos ? (
+                                    <Box display="flex" justifyContent="center" p={3}>
+                                        <CircularProgress />
+                                    </Box>
+                                ) : gruposUsuario.length === 0 ? (
+                                    <Alert severity="info">El usuario no pertenece a ningún grupo.</Alert>
+                                ) : (
+                                    <TableContainer component={Paper} variant="outlined">
+                                        <Table size="small">
+                                            <TableHead>
+                                                <TableRow>
+                                                    <TableCell>Grupo</TableCell>
+                                                    <TableCell>Estado</TableCell>
+                                                    <TableCell>Asistencia</TableCell>
+                                                    <TableCell>Acciones</TableCell>
+                                                </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                                {gruposUsuario.map((grupo) => (
+                                                    <TableRow key={grupo.grupo_id}>
+                                                        <TableCell>{grupo.grupo_nombre}</TableCell>
+                                                        <TableCell>
+                                                            {grupo.activo ? (
+                                                                <Chip label="Activo" color="success" size="small" />
+                                                            ) : (
+                                                                <Chip label="Inactivo" size="small" />
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {grupo.cargandoEstadisticas ? (
+                                                                <CircularProgress size={20} />
+                                                            ) : grupo.estadisticas ? (
+                                                                <Box sx={{ minWidth: 200 }}>
+                                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                                                        <Box sx={{ width: 60, textAlign: 'right' }}>
+                                                                            <Typography variant="body2" color="text.secondary">
+                                                                                {Math.round((grupo.estadisticas.asistencias / (grupo.estadisticas.totalReuniones || 1)) * 100)}%
+                                                                            </Typography>
+                                                                        </Box>
+                                                                        <Box sx={{ flexGrow: 1 }}>
+                                                                            <LinearProgress 
+                                                                                variant="determinate"
+                                                                                value={(grupo.estadisticas.asistencias / (grupo.estadisticas.totalReuniones || 1)) * 100}
+                                                                                color="success"
+                                                                                sx={{ height: 8, borderRadius: 1 }}
+                                                                            />
+                                                                        </Box>
+                                                                    </Box>
+                                                                    <Box sx={{ display: 'flex', gap: 1, fontSize: '0.75rem' }}>
+                                                                        <Chip 
+                                                                            size="small" 
+                                                                            label={`✓ ${grupo.estadisticas.asistencias}`} 
+                                                                            color="success" 
+                                                                            variant="outlined"
+                                                                        />
+                                                                        <Chip 
+                                                                            size="small" 
+                                                                            label={`! ${grupo.estadisticas.excusas}`} 
+                                                                            color="warning" 
+                                                                            variant="outlined"
+                                                                        />
+                                                                        <Chip 
+                                                                            size="small" 
+                                                                            label={`✕ ${grupo.estadisticas.inasistencias}`} 
+                                                                            color="error" 
+                                                                            variant="outlined"
+                                                                        />
+                                                                    </Box>
+                                                                </Box>
+                                                            ) : (
+                                                                <Typography variant="body2" color="text.secondary">
+                                                                    Sin datos de asistencia
+                                                                </Typography>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={() => {
+                                                                    const updatedGrupos = gruposUsuario.map(g => 
+                                                                        g.grupo_id === grupo.grupo_id ? { ...g, activo: !g.activo } : g
+                                                                    );
+                                                                    setGruposUsuario(updatedGrupos);
+                                                                }}
+                                                            >
+                                                                {grupo.activo ? <CancelIcon color="error" /> : <CheckCircleIcon color="success" />}
+                                                            </IconButton>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </TableContainer>
+                                )}
+                            </Box>
+                        )}
+                    </DialogContent>
+                    <DialogActions sx={{ p: 2 }}>
+                        <Button onClick={handleCloseDialog} variant="outlined">
+                            Cancelar
+                        </Button>
+                        <Button 
+                            type="submit" 
+                            variant="contained" 
+                            color="primary"
+                            disabled={cargandoGrupos}
+                        >
+                            {usuarioEditando ? 'Actualizar' : 'Crear'}
+                        </Button>
+                    </DialogActions>
+                </form>
+            </Dialog>
 
             <Snackbar
                 open={snackbar.open}

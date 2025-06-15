@@ -25,6 +25,12 @@ export interface Miembro {
     fecha_fin?: string | null;
     persona?: Usuario;
     activo?: boolean;
+    estadisticas?: {
+        totalReuniones: number;
+        asistencias: number;
+        excusas: number;
+        inasistencias: number;
+    };
 }
 
 export interface Reunion {

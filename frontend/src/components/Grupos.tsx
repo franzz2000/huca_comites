@@ -282,14 +282,14 @@ export const Grupos = () => {
             </Box>
             
             {!grupoSeleccionado ? (
-                <TableContainer component={Paper}>
+                <TableContainer component={Paper} sx={{ mt: 2 }}>
                     <Table>
                         <TableHead>
                             <TableRow>
                                 <TableCell>Nombre</TableCell>
                                 <TableCell>Descripción</TableCell>
-                                <TableCell align="center">Asistencia</TableCell>
-                                <TableCell align="right">Acciones</TableCell>
+                                <TableCell>Asistencia</TableCell>
+                                <TableCell>Acciones</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -318,38 +318,43 @@ export const Grupos = () => {
                                     >
                                         <TableCell>{grupo.nombre}</TableCell>
                                         <TableCell>{grupo.descripcion || '-'}</TableCell>
-                                        <TableCell align="center">
+                                        <TableCell>
                                             {cargandoEstadisticas[grupo.id!] ? (
-                                                <LinearProgress />
-                                            ) : grupo.totalReuniones !== undefined && grupo.asistenciasUsuario !== undefined ? (
-                                                <Tooltip title={`${grupo.asistenciasUsuario} de ${grupo.totalReuniones} reuniones`}>
-                                                    <Box>
-                                                        <Chip 
-                                                            label={`${grupo.asistenciasUsuario}/${grupo.totalReuniones}`}
-                                                            color={
-                                                                grupo.totalReuniones === 0 ? 'default' :
-                                                                grupo.asistenciasUsuario === grupo.totalReuniones ? 'success' :
-                                                                grupo.asistenciasUsuario > 0 ? 'warning' : 'error'
-                                                            }
-                                                            size="small"
-                                                        />
-                                                        {grupo.totalReuniones > 0 && (
-                                                            <Box sx={{ width: '100%', mt: 1 }}>
-                                                                <LinearProgress 
-                                                                    variant="determinate" 
-                                                                    value={(grupo.asistenciasUsuario / grupo.totalReuniones) * 100} 
-                                                                    color={
-                                                                        grupo.asistenciasUsuario === grupo.totalReuniones ? 'success' :
-                                                                        grupo.asistenciasUsuario > 0 ? 'warning' : 'error'
-                                                                    }
-                                                                />
-                                                            </Box>
-                                                        )}
+                                                <Box sx={{ width: '100%' }}>
+                                                    <LinearProgress />
+                                                </Box>
+                                            ) : (
+                                                grupo.totalReuniones !== undefined && 
+                                                grupo.asistenciasUsuario !== undefined && (
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                        <Box sx={{ minWidth: 80 }}>
+                                                            <Typography variant="body2" color="text.secondary">
+                                                                {grupo.asistenciasUsuario} / {grupo.totalReuniones}
+                                                            </Typography>
+                                                        </Box>
+                                                        <Box sx={{ width: '100%', maxWidth: 100 }}>
+                                                            <LinearProgress
+                                                                variant="determinate"
+                                                                value={grupo.totalReuniones > 0 
+                                                                    ? (grupo.asistenciasUsuario / grupo.totalReuniones) * 100 
+                                                                    : 0
+                                                                }
+                                                                color={
+                                                                    grupo.totalReuniones === 0 
+                                                                        ? 'inherit' 
+                                                                        : (grupo.asistenciasUsuario / grupo.totalReuniones) >= 0.8 
+                                                                            ? 'success' 
+                                                                            : (grupo.asistenciasUsuario / grupo.totalReuniones) >= 0.5 
+                                                                                ? 'warning' 
+                                                                                : 'error'
+                                                                }
+                                                            />
+                                                        </Box>
                                                     </Box>
-                                                </Tooltip>
-                                            ) : '-'}
+                                                )
+                                            )}
                                         </TableCell>
-                                        <TableCell align="right">
+                                        <TableCell>
                                             <IconButton 
                                                 onClick={() => handleOpenMiembrosDialog(grupo)}
                                                 color="primary"

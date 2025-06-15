@@ -96,3 +96,9 @@ export const getAsistencias = (reunionId: number): Promise<ApiResponse<Asistenci
     api.get(`/api/reuniones/${reunionId}/asistencia`);
 export const updateAsistencia = (reunionId: number, data: { persona_id: number; asistio: boolean }[]): Promise<ApiResponse<Asistencia[]>> => 
     api.post(`/api/reuniones/${reunionId}/asistencia`, data);
+
+// Obtener estadísticas de asistencia de un usuario en un grupo
+export const getEstadisticasAsistencia = async (usuarioId: number, grupoId: number) => {
+    const response = await api.get(`/api/usuarios/${usuarioId}/grupos/${grupoId}/estadisticas`);
+    return response.data;
+};

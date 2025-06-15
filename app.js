@@ -1137,6 +1137,39 @@ app.post('/api/reuniones/:id/asistencias', (req, res) => {
     });
 });
 
+// Obtener estadísticas de asistencia de un usuario en un grupo
+app.get('/api/usuarios/:usuarioId/grupos/:grupoId/estadisticas', verifyToken, (req, res) => {
+    const { usuarioId, grupoId } = req.params;
+
+    const query = `
+        SELECT 
+            COUNT(DISTINCT r.id) as total_reuniones,
+            SUM(CASE WHEN a.estado = 'asistio' THEN 1 ELSE 0 END) as asistencias,
+            SUM(CASE WHEN a.estado = 'excusa' THEN 1 ELSE 0 END) as excusas,
+            SUM(CASE WHEN a.estado = 'no_asistio' OR a.estado IS NULL THEN 1 ELSE 0 END) as inasistencias
+        FROM 
+            reuniones r
+        LEFT JOIN 
+            asistencias a ON r.id = a.reunion_id AND a.persona_id = ?
+        WHERE 
+            r.grupo_id = ?
+    `;
+
+    db.get(query, [usuarioId, grupoId], (err, row) => {
+        if (err) {
+            console.error('Error al obtener estadísticas de asistencia:', err);
+            return res.status(500).json({ error: 'Error al obtener estadísticas de asistencia' });
+        }
+
+        res.json({
+            totalReuniones: row.total_reuniones || 0,
+            asistencias: row.asistencias || 0,
+            excusas: row.excusas || 0,
+            inasistencias: row.inasistencias || 0
+        });
+    });
+});
+
 // Inicializar la base de datos y comenzar el servidor
 const PORT = process.env.PORT || 3001;
 
