@@ -34,7 +34,8 @@ import {
     Group as GroupIcon,
     CheckCircle as CheckCircleIcon,
     Cancel as CancelIcon,
-    AdminPanelSettings as AdminIcon
+    AdminPanelSettings as AdminIcon,
+    VpnKey as VpnKeyIcon
 } from '@mui/icons-material';
 import { 
     getUsuarios, 
@@ -101,6 +102,13 @@ export const Usuarios = () => {
         es_admin: true,
         activo: true
     });
+    const [openPasswordDialog, setOpenPasswordDialog] = useState(false);
+    const [passwordData, setPasswordData] = useState({
+        id: 0,
+        nuevaContrasena: '',
+        confirmarContrasena: ''
+    });
+    const [passwordError, setPasswordError] = useState('');
 
     const usuariosFiltrados = usuarios.filter(usuario => {
         const busqueda = filtroBusqueda.toLowerCase();
@@ -336,6 +344,38 @@ export const Usuarios = () => {
         }
     };
 
+    const handleChangePassword = async () => {
+        if (passwordData.nuevaContrasena !== passwordData.confirmarContrasena) {
+            setPasswordError('Las contraseñas no coinciden');
+            return;
+        }
+
+        try {
+            await api.put(`/usuarios/${passwordData.id}/cambiar-password`, {
+                password: passwordData.nuevaContrasena
+            });
+            setOpenPasswordDialog(false);
+            setSnackbar({
+                open: true,
+                message: 'Contraseña actualizada correctamente',
+                severity: 'success'
+            });
+        } catch (error) {
+            console.error('Error al cambiar la contraseña:', error);
+            setPasswordError('Error al actualizar la contraseña');
+        }
+    };
+
+    const handleOpenPasswordDialog = (usuario: Usuario) => {
+        setPasswordData({
+            id: usuario.id || 0,
+            nuevaContrasena: '',
+            confirmarContrasena: ''
+        });
+        setPasswordError('');
+        setOpenPasswordDialog(true);
+    };
+
     const cargarEstadisticasGrupo = useCallback(async (usuarioId: number, grupo: GrupoUsuario) => {
         try {
             setGruposUsuario(prev => prev.map(g => 
@@ -458,6 +498,16 @@ export const Usuarios = () => {
                                                 <EditIcon />
                                             </IconButton>
                                         </Tooltip>
+                                        {usuario.es_admin && (
+                                            <Tooltip title="Cambiar contraseña">
+                                                <IconButton 
+                                                    onClick={() => handleOpenPasswordDialog(usuario)}
+                                                    color="primary"
+                                                >
+                                                    <VpnKeyIcon />
+                                                </IconButton>
+                                            </Tooltip>
+                                        )}
                                         <Tooltip title={usuario.activo ? "Desactivar usuario" : "Activar usuario"}>
                                             <IconButton 
                                                 onClick={() => handleEliminar(usuario.id!)} 
@@ -761,6 +811,49 @@ export const Usuarios = () => {
                         disabled={!nuevoAdmin.nombre || !nuevoAdmin.primer_apellido || !nuevoAdmin.email || !nuevoAdmin.password}
                     >
                         Crear Administrador
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Password Change Dialog */}
+            <Dialog 
+                open={openPasswordDialog} 
+                onClose={() => setOpenPasswordDialog(false)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle>Cambiar contraseña</DialogTitle>
+                <DialogContent>
+                    <Box sx={{ mt: 2 }}>
+                        <TextField
+                            fullWidth
+                            margin="normal"
+                            label="Nueva contraseña"
+                            type="password"
+                            value={passwordData.nuevaContrasena}
+                            onChange={(e) => setPasswordData({...passwordData, nuevaContrasena: e.target.value})}
+                        />
+                        <TextField
+                            fullWidth
+                            margin="normal"
+                            label="Confirmar contraseña"
+                            type="password"
+                            value={passwordData.confirmarContrasena}
+                            onChange={(e) => setPasswordData({...passwordData, confirmarContrasena: e.target.value})}
+                            error={!!passwordError}
+                            helperText={passwordError}
+                        />
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setOpenPasswordDialog(false)}>Cancelar</Button>
+                    <Button 
+                        onClick={handleChangePassword} 
+                        variant="contained" 
+                        color="primary"
+                        disabled={!passwordData.nuevaContrasena || passwordData.nuevaContrasena !== passwordData.confirmarContrasena}
+                    >
+                        Guardar
                     </Button>
                 </DialogActions>
             </Dialog>
