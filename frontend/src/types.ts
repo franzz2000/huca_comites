@@ -24,8 +24,8 @@ export interface Miembro {
     id?: number;
     persona_id: number;
     grupo_id: number;
-    fecha_inicio?: string;
-    fecha_fin?: string | null;
+    fecha_inicio?: string; //format 'YYYY-MM-DD'
+    fecha_fin?: string | null; //format 'YYYY-MM-DD'
     persona?: Usuario;
     activo?: boolean;
     estadisticas?: {

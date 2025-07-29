@@ -219,18 +219,45 @@ export const ReunionForm: React.FC<ReunionFormProps> = ({
         };
       });
 
+      console.log('Enviando datos al servidor', {
+        reunion: reunionData,
+        asistencias: asistenciasData
+      });
+
       await onSave(reunionData, asistenciasData);
       onClose();
     } catch (error: unknown) {
       console.error('Error al guardar la reunión:', error);
-      const errorMessage = (error as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Error al guardar la reunión';
+
+      interface AxiosErrorResponse {
+        response?: {
+          status?: number;
+          statusText?: string;
+          data?: {
+            error?: string;
+            [key: string]: unknown;
+          };
+            headers?: Record<string, unknown>;
+        }
+      }
+
+      const axiosError = error as AxiosErrorResponse;
+      const errorMessage = axiosError?.response?.data?.error || 'Error al guardar la reunión';
+
+      console.error('Detalles del error:',{
+        status: axiosError?.response?.status,
+        statusText: axiosError?.response?.statusText,
+        data: axiosError?.response?.data,
+        headers: axiosError?.response?.headers,
+      })
+
       alert(errorMessage);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDialogClose = (_event: object, reason: 'backdropClick' | 'escapeKeyDown') => {
+  const handleDialogClose = (_event: React.SyntheticEvent | Event, reason: 'backdropClick' | 'escapeKeyDown') => {
     // Prevent closing on outside click
     if (reason === 'backdropClick') {
       return;

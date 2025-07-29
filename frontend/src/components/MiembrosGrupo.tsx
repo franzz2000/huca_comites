@@ -136,10 +136,13 @@ export const MiembrosGrupo = ({ open, onClose, grupoId, grupoNombre, onMiembroAg
         if (!usuarioSeleccionado?.id || !grupoId) return;
 
         try {
+            const fechaInicio = new Date();
+            const fechaInicioFormatted = fechaInicio.toISOString().split('T')[0];
+
             await createMiembro({
                 grupo_id: grupoId,
                 persona_id: usuarioSeleccionado.id,
-                fecha_inicio: new Date().toISOString().split('T')[0]
+                fecha_inicio: fechaInicioFormatted
             });
 
             await cargarMiembros();
@@ -181,10 +184,14 @@ export const MiembrosGrupo = ({ open, onClose, grupoId, grupoNombre, onMiembroAg
             setGuardando(true);
             const fechaInicio = editandoMiembro.fecha_inicio || new Date();
             const fechaFin = editandoMiembro.fecha_fin;
+
+            // format dates as YYY-MM-DD
+            const fechaInicioFormatted = fechaInicio.toISOString().split('T')[0];
+            const fechaFinFormatted = fechaFin ? fechaFin.toISOString().split('T')[0] : null;
             
             await updateMiembro(editandoMiembro.id, {
-                fecha_inicio: fechaInicio.toISOString().split('T')[0],
-                fecha_fin: fechaFin ? fechaFin.toISOString().split('T')[0] : null
+                fecha_inicio: fechaInicioFormatted,
+                fecha_fin: fechaFinFormatted
             });
             
             await cargarMiembros();
