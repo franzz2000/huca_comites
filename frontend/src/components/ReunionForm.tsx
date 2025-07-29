@@ -204,11 +204,20 @@ export const ReunionForm: React.FC<ReunionFormProps> = ({
         }))
       });
 
-      const asistenciasData = Object.entries(asistencias).map(([personaId, asistencia]) => ({
-        persona_id: Number(personaId),
-        estado: asistencia.estado,
-        observaciones: asistencia.observaciones || null,
-      }));
+      const asistenciasData = Object.entries(asistencias).map(([personaId, asistencia]) => {
+        let asistio: boolean;
+        if (asistencia.estado === 'asistio') {
+          asistio = true;
+        } else {
+          asistio = false;
+        }
+        return {
+          persona_id: Number(personaId),
+          asistio,
+          estado: asistencia.estado,
+          observaciones: asistencia.observaciones ? asistencia.observaciones : undefined,
+        };
+      });
 
       await onSave(reunionData, asistenciasData);
       onClose();

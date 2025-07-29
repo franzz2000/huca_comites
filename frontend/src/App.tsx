@@ -102,9 +102,6 @@ function App() {
     navigate(from, { replace: true });
   }, [navigate, location.state]);
 
-  const handleRegisterSuccess = useCallback(() => {
-    navigate('/', { replace: true });
-  }, [navigate]);
 
   const handleLogout = useCallback(() => {
     navigate('/login', { replace: true });
@@ -115,7 +112,6 @@ function App() {
       <CssBaseline />
       <AuthProvider 
         onLoginSuccess={handleLoginSuccess}
-        onRegisterSuccess={handleRegisterSuccess}
         onLogout={handleLogout}
       >
         <Routes>

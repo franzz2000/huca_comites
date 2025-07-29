@@ -32,7 +32,7 @@ import {
     CheckCircle as CheckCircleIcon,
     Cancel as CancelIcon
 } from '@mui/icons-material';
-import { getUsuarios, createUsuario, updateUsuario, deleteUsuario, getMiembros, getGrupos, updateMiembro, getEstadisticasAsistencia } from '../services/api'; 
+import { getUsuarios, createUsuario, updateUsuario, deleteUsuario, getMiembros, getGrupos, getEstadisticasAsistencia } from '../services/api'; 
 import type { Usuario, Miembro, Grupo } from '../types';
 
 interface GrupoUsuario extends Omit<Miembro, 'fecha_inicio' | 'fecha_fin'> {
@@ -66,8 +66,8 @@ export const Usuarios = () => {
     });
     const [gruposUsuario, setGruposUsuario] = useState<GrupoUsuario[]>([]);
     const [cargandoGrupos, setCargandoGrupos] = useState(false);
-    const [editandoMiembroId, setEditandoMiembroId] = useState<number | null>(null);
-    const [fechasEditadas, setFechasEditadas] = useState<{fecha_inicio: string; fecha_fin: string | null}>({fecha_inicio: '', fecha_fin: null});
+    // const [editandoMiembroId, setEditandoMiembroId] = useState<number | null>(null);
+    // const [fechasEditadas, setFechasEditadas] = useState<{fecha_inicio: string; fecha_fin: string | null}>({fecha_inicio: '', fecha_fin: null});
     const [filtroBusqueda, setFiltroBusqueda] = useState('');
     const [snackbar, setSnackbar] = useState<{ 
         open: boolean; 
@@ -184,8 +184,6 @@ export const Usuarios = () => {
     const handleCloseDialog = () => {
         setOpenDialog(false);
         setUsuarioEditando(null);
-        setEditandoMiembroId(null);
-        setFechasEditadas({fecha_inicio: '', fecha_fin: null});
         setNuevoUsuario({
             nombre: '',
             primer_apellido: '',
@@ -268,46 +266,9 @@ export const Usuarios = () => {
         }
     };
 
-    const handleEditarMiembro = (miembro: GrupoUsuario) => {
-        setEditandoMiembroId(miembro.id!);
-        setFechasEditadas({
-            fecha_inicio: miembro.fecha_inicio,
-            fecha_fin: miembro.fecha_fin
-        });
-    };
 
-    const handleCancelarEdicion = () => {
-        setEditandoMiembroId(null);
-        setFechasEditadas({fecha_inicio: '', fecha_fin: null});
-    };
 
-    const handleGuardarMiembro = async (miembro: GrupoUsuario) => {
-        try {
-            if (!miembro.id) return;
-            
-            await updateMiembro(miembro.id, {
-                fecha_inicio: fechasEditadas.fecha_inicio,
-                fecha_fin: fechasEditadas.fecha_fin || null
-            });
-            
-            if (usuarioEditando?.id) {
-                await cargarGruposUsuario(usuarioEditando.id);
-            }
-            
-            setEditandoMiembroId(null);
-            mostrarMensaje('Fechas de membresía actualizadas correctamente', 'success');
-        } catch (error) {
-            console.error('Error al actualizar la membresía:', error);
-            mostrarMensaje('Error al actualizar las fechas de membresía', 'error');
-        }
-    };
 
-    const handleFechaChange = (campo: 'fecha_inicio' | 'fecha_fin', valor: string) => {
-        setFechasEditadas(prev => ({
-            ...prev,
-            [campo]: valor || null
-        }));
-    };
 
     const cargarEstadisticasGrupo = useCallback(async (usuarioId: number, grupo: GrupoUsuario) => {
         try {
