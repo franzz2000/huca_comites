@@ -1170,6 +1170,74 @@ app.get('/api/usuarios/:usuarioId/grupos/:grupoId/estadisticas', verifyToken, (r
     });
 });
 
+// Create Admin User Endpoint
+app.post('/api/admin/users', verifyToken, (req, res) => {
+    // Check if the requesting user is an admin
+    db.get('SELECT es_admin FROM personas WHERE id = ?', [req.userId], (err, user) => {
+        if (err) {
+            console.error('Error checking admin status:', err);
+            return res.status(500).json({ error: 'Error al verificar permisos de administrador' });
+        }
+
+        if (!user || !user.es_admin) {
+            return res.status(403).json({ error: 'No tiene permisos de administrador' });
+        }
+
+        const { nombre, primer_apellido, email, password, puesto_trabajo } = req.body;
+
+        // Basic validation
+        if (!nombre || !primer_apellido || !email || !password) {
+            return res.status(400).json({ error: 'Todos los campos son requeridos' });
+        }
+
+        // Check if user already exists
+        db.get('SELECT id FROM personas WHERE email = ?', [email], (err, existingUser) => {
+            if (err) {
+                console.error('Error checking existing user:', err);
+                return res.status(500).json({ error: 'Error al verificar usuario existente' });
+            }
+
+            if (existingUser) {
+                return res.status(400).json({ error: 'El correo electrónico ya está registrado' });
+            }
+
+            // Hash the password
+            bcrypt.hash(password, 10, (err, hashedPassword) => {
+                if (err) {
+                    console.error('Error hashing password:', err);
+                    return res.status(500).json({ error: 'Error al procesar la contraseña' });
+                }
+
+                // Insert new admin user
+                db.run(
+                    'INSERT INTO personas (nombre, primer_apellido, email, password, es_admin, puesto_trabajo, activo) VALUES (?, ?, ?, ?, 1, ?, 1)',
+                    [nombre, primer_apellido, email, hashedPassword, puesto_trabajo || 'Administrador'],
+                    function(err) {
+                        if (err) {
+                            console.error('Error creating admin user:', err);
+                            return res.status(500).json({ error: 'Error al crear el usuario administrador' });
+                        }
+
+                        res.status(201).json({
+                            id: this.lastID,
+                            message: 'Usuario administrador creado exitosamente',
+                            user: {
+                                id: this.lastID,
+                                nombre,
+                                primer_apellido,
+                                email,
+                                puesto_trabajo: puesto_trabajo || 'Administrador',
+                                es_admin: 1,
+                                activo: 1
+                            }
+                        });
+                    }
+                );
+            });
+        });
+    });
+});
+
 // Inicializar la base de datos y comenzar el servidor
 const PORT = process.env.PORT || 3001;
 

@@ -21,7 +21,10 @@ import {
     InputAdornment,
     Chip,
     CircularProgress,
-    LinearProgress
+    LinearProgress,
+    FormControlLabel,
+    Switch,
+    Tooltip
 } from '@mui/material';
 import { 
     Add as AddIcon, 
@@ -30,9 +33,19 @@ import {
     Search as SearchIcon,
     Group as GroupIcon,
     CheckCircle as CheckCircleIcon,
-    Cancel as CancelIcon
+    Cancel as CancelIcon,
+    AdminPanelSettings as AdminIcon
 } from '@mui/icons-material';
-import { getUsuarios, createUsuario, updateUsuario, deleteUsuario, getMiembros, getGrupos, getEstadisticasAsistencia } from '../services/api'; 
+import { 
+    getUsuarios, 
+    createUsuario, 
+    updateUsuario, 
+    deleteUsuario, 
+    getMiembros, 
+    getGrupos, 
+    getEstadisticasAsistencia, 
+    createAdminUser 
+} from '../services/api'; 
 import type { Usuario, Miembro, Grupo } from '../types';
 
 interface GrupoUsuario extends Omit<Miembro, 'fecha_inicio' | 'fecha_fin'> {
@@ -66,8 +79,6 @@ export const Usuarios = () => {
     });
     const [gruposUsuario, setGruposUsuario] = useState<GrupoUsuario[]>([]);
     const [cargandoGrupos, setCargandoGrupos] = useState(false);
-    // const [editandoMiembroId, setEditandoMiembroId] = useState<number | null>(null);
-    // const [fechasEditadas, setFechasEditadas] = useState<{fecha_inicio: string; fecha_fin: string | null}>({fecha_inicio: '', fecha_fin: null});
     const [filtroBusqueda, setFiltroBusqueda] = useState('');
     const [snackbar, setSnackbar] = useState<{ 
         open: boolean; 
@@ -77,6 +88,18 @@ export const Usuarios = () => {
         open: false, 
         message: '', 
         severity: 'info' 
+    });
+    const [openAdminDialog, setOpenAdminDialog] = useState(false);
+    const [nuevoAdmin, setNuevoAdmin] = useState<Omit<Usuario, 'id'> & { password: string }>({ 
+        nombre: '',
+        primer_apellido: '',
+        segundo_apellido: '',
+        email: '',
+        password: '',
+        telefono: '',
+        puesto_trabajo: 'Administrador',
+        es_admin: true,
+        activo: true
     });
 
     const usuariosFiltrados = usuarios.filter(usuario => {
@@ -266,9 +289,52 @@ export const Usuarios = () => {
         }
     };
 
+    const handleOpenAdminDialog = () => {
+        setNuevoAdmin({
+            nombre: '',
+            primer_apellido: '',
+            segundo_apellido: '',
+            email: '',
+            password: '',
+            telefono: '',
+            puesto_trabajo: 'Administrador',
+            es_admin: true,
+            activo: true
+        });
+        setOpenAdminDialog(true);
+    };
 
+    const handleCloseAdminDialog = () => {
+        setOpenAdminDialog(false);
+    };
 
+    const handleAdminInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setNuevoAdmin(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
 
+    const handleCreateAdmin = async () => {
+        try {
+            const response = await createAdminUser(nuevoAdmin);
+            setSnackbar({
+                open: true,
+                message: 'Administrador creado exitosamente',
+                severity: 'success'
+            });
+            setOpenAdminDialog(false);
+            cargarUsuarios(); // Recargar la lista de usuarios
+        } catch (error) {
+            console.error('Error al crear administrador:', error);
+            setSnackbar({
+                open: true,
+                message: error instanceof Error ? error.message : 'Error al crear administrador',
+                severity: 'error'
+            });
+        }
+    };
 
     const cargarEstadisticasGrupo = useCallback(async (usuarioId: number, grupo: GrupoUsuario) => {
         try {
@@ -312,14 +378,26 @@ export const Usuarios = () => {
                     <Typography variant="h5" component="h2">
                         Gestión de Usuarios
                     </Typography>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        startIcon={<AddIcon />}
-                        onClick={() => handleOpenDialog()}
-                    >
-                        Nuevo Usuario
-                    </Button>
+                    <Box>
+                        <Button 
+                            variant="contained" 
+                            color="primary" 
+                            startIcon={<AddIcon />}
+                            onClick={handleOpenAdminDialog}
+                            sx={{ ml: 2 }}
+                        >
+                            Nuevo Administrador
+                        </Button>
+                        <Button 
+                            variant="outlined" 
+                            color="primary" 
+                            startIcon={<AddIcon />}
+                            onClick={handleOpenDialog}
+                            sx={{ ml: 2 }}
+                        >
+                            Nuevo Usuario
+                        </Button>
+                    </Box>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                     <TextField
@@ -375,16 +453,20 @@ export const Usuarios = () => {
                                     <TableCell>{usuario.telefono || '-'}</TableCell>
                                     <TableCell>{usuario.puesto_trabajo || '-'}</TableCell>
                                     <TableCell align="right">
-                                        <IconButton onClick={() => handleOpenDialog(usuario)} color="primary">
-                                            <EditIcon />
-                                        </IconButton>
-                                        <IconButton 
-                                            onClick={() => handleEliminar(usuario.id!)} 
-                                            color="error"
-                                            disabled={!usuario.id || usuario.id === 1}
-                                        >
-                                            <DeleteIcon />
-                                        </IconButton>
+                                        <Tooltip title="Editar usuario">
+                                            <IconButton onClick={() => handleOpenDialog(usuario)} color="primary">
+                                                <EditIcon />
+                                            </IconButton>
+                                        </Tooltip>
+                                        <Tooltip title={usuario.activo ? "Desactivar usuario" : "Activar usuario"}>
+                                            <IconButton 
+                                                onClick={() => handleEliminar(usuario.id!)} 
+                                                color="error"
+                                                disabled={!usuario.id || usuario.id === 1}
+                                            >
+                                                <DeleteIcon />
+                                            </IconButton>
+                                        </Tooltip>
                                     </TableCell>
                                 </TableRow>
                             ))
@@ -554,17 +636,19 @@ export const Usuarios = () => {
                                                             )}
                                                         </TableCell>
                                                         <TableCell>
-                                                            <IconButton
-                                                                size="small"
-                                                                onClick={() => {
-                                                                    const updatedGrupos = gruposUsuario.map(g => 
-                                                                        g.grupo_id === grupo.grupo_id ? { ...g, activo: !g.activo } : g
-                                                                    );
-                                                                    setGruposUsuario(updatedGrupos);
-                                                                }}
-                                                            >
-                                                                {grupo.activo ? <CancelIcon color="error" /> : <CheckCircleIcon color="success" />}
-                                                            </IconButton>
+                                                            <Tooltip title={grupo.activo ? "Desactivar grupo" : "Activar grupo"}>
+                                                                <IconButton
+                                                                    size="small"
+                                                                    onClick={() => {
+                                                                        const updatedGrupos = gruposUsuario.map(g => 
+                                                                            g.grupo_id === grupo.grupo_id ? { ...g, activo: !g.activo } : g
+                                                                        );
+                                                                        setGruposUsuario(updatedGrupos);
+                                                                    }}
+                                                                >
+                                                                    {grupo.activo ? <CancelIcon color="error" /> : <CheckCircleIcon color="success" />}
+                                                                </IconButton>
+                                                            </Tooltip>
                                                         </TableCell>
                                                     </TableRow>
                                                 ))}
@@ -589,6 +673,96 @@ export const Usuarios = () => {
                         </Button>
                     </DialogActions>
                 </form>
+            </Dialog>
+
+            <Dialog open={openAdminDialog} onClose={handleCloseAdminDialog} maxWidth="sm" fullWidth>
+                <DialogTitle>Nuevo Administrador</DialogTitle>
+                <DialogContent>
+                    <Box display="flex" flexDirection="column" gap={2} mt={2}>
+                        <TextField
+                            name="nombre"
+                            label="Nombre"
+                            value={nuevoAdmin.nombre}
+                            onChange={handleAdminInputChange}
+                            fullWidth
+                            required
+                        />
+                        <TextField
+                            name="primer_apellido"
+                            label="Primer Apellido"
+                            value={nuevoAdmin.primer_apellido}
+                            onChange={handleAdminInputChange}
+                            fullWidth
+                            required
+                        />
+                        <TextField
+                            name="segundo_apellido"
+                            label="Segundo Apellido"
+                            value={nuevoAdmin.segundo_apellido || ''}
+                            onChange={handleAdminInputChange}
+                            fullWidth
+                        />
+                        <TextField
+                            name="email"
+                            label="Correo Electrónico"
+                            type="email"
+                            value={nuevoAdmin.email}
+                            onChange={handleAdminInputChange}
+                            fullWidth
+                            required
+                        />
+                        <TextField
+                            name="password"
+                            label="Contraseña"
+                            type="password"
+                            value={nuevoAdmin.password}
+                            onChange={handleAdminInputChange}
+                            fullWidth
+                            required
+                        />
+                        <TextField
+                            name="telefono"
+                            label="Teléfono"
+                            value={nuevoAdmin.telefono || ''}
+                            onChange={handleAdminInputChange}
+                            fullWidth
+                        />
+                        <TextField
+                            name="puesto_trabajo"
+                            label="Puesto de Trabajo"
+                            value={nuevoAdmin.puesto_trabajo}
+                            onChange={handleAdminInputChange}
+                            fullWidth
+                        />
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    checked={nuevoAdmin.activo}
+                                    onChange={(e) => 
+                                        setNuevoAdmin(prev => ({
+                                            ...prev,
+                                            activo: e.target.checked
+                                        }))
+                                    }
+                                    name="activo"
+                                    color="primary"
+                                />
+                            }
+                            label="Usuario activo"
+                        />
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseAdminDialog}>Cancelar</Button>
+                    <Button 
+                        onClick={handleCreateAdmin} 
+                        variant="contained" 
+                        color="primary"
+                        disabled={!nuevoAdmin.nombre || !nuevoAdmin.primer_apellido || !nuevoAdmin.email || !nuevoAdmin.password}
+                    >
+                        Crear Administrador
+                    </Button>
+                </DialogActions>
             </Dialog>
 
             <Snackbar

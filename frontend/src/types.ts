@@ -7,6 +7,8 @@ export interface Usuario {
     telefono?: string | null;
     puesto_trabajo?: string | null;
     observaciones?: string | null;
+    es_admin?: boolean;
+    activo?: boolean;
 }
 
 export interface Grupo {
