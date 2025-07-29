@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { api } from '../services/api';
 import {
     Box,
     Button,
@@ -34,7 +35,6 @@ import {
     Group as GroupIcon,
     CheckCircle as CheckCircleIcon,
     Cancel as CancelIcon,
-    AdminPanelSettings as AdminIcon,
     VpnKey as VpnKeyIcon
 } from '@mui/icons-material';
 import { 
@@ -73,6 +73,7 @@ export const Usuarios = () => {
         nombre: '',
         primer_apellido: '',
         segundo_apellido: '',
+        dni: '',
         email: '',
         telefono: '',
         puesto_trabajo: '',
@@ -95,6 +96,7 @@ export const Usuarios = () => {
         nombre: '',
         primer_apellido: '',
         segundo_apellido: '',
+        dni: '',
         email: '',
         password: '',
         telefono: '',
@@ -188,6 +190,7 @@ export const Usuarios = () => {
                 nombre: usuario.nombre,
                 primer_apellido: usuario.primer_apellido,
                 segundo_apellido: usuario.segundo_apellido || '',
+                dni: usuario.dni || '',
                 email: usuario.email,
                 telefono: usuario.telefono || '',
                 puesto_trabajo: usuario.puesto_trabajo || '',
@@ -202,6 +205,7 @@ export const Usuarios = () => {
                 nombre: '',
                 primer_apellido: '',
                 segundo_apellido: '',
+                dni: '',
                 email: '',
                 telefono: '',
                 puesto_trabajo: '',
@@ -219,6 +223,7 @@ export const Usuarios = () => {
             nombre: '',
             primer_apellido: '',
             segundo_apellido: '',
+            dni: '',
             email: '',
             telefono: '',
             puesto_trabajo: '',
@@ -252,6 +257,7 @@ export const Usuarios = () => {
                     nombre: nuevoUsuario.nombre,
                     primer_apellido: nuevoUsuario.primer_apellido,
                     segundo_apellido: nuevoUsuario.segundo_apellido || null,
+                    dni: nuevoUsuario.dni || null,
                     email: nuevoUsuario.email,
                     telefono: nuevoUsuario.telefono || null,
                     puesto_trabajo: nuevoUsuario.puesto_trabajo || null,
@@ -263,6 +269,7 @@ export const Usuarios = () => {
                     nombre: nuevoUsuario.nombre,
                     primer_apellido: nuevoUsuario.primer_apellido,
                     segundo_apellido: nuevoUsuario.segundo_apellido || null,
+                    dni: nuevoUsuario.dni || null,
                     email: nuevoUsuario.email,
                     telefono: nuevoUsuario.telefono || null,
                     puesto_trabajo: nuevoUsuario.puesto_trabajo || null,
@@ -302,6 +309,7 @@ export const Usuarios = () => {
             nombre: '',
             primer_apellido: '',
             segundo_apellido: '',
+            dni: '',
             email: '',
             password: '',
             telefono: '',
@@ -326,7 +334,7 @@ export const Usuarios = () => {
 
     const handleCreateAdmin = async () => {
         try {
-            const response = await createAdminUser(nuevoAdmin);
+            await createAdminUser(nuevoAdmin);
             setSnackbar({
                 open: true,
                 message: 'Administrador creado exitosamente',
@@ -432,7 +440,7 @@ export const Usuarios = () => {
                             variant="outlined" 
                             color="primary" 
                             startIcon={<AddIcon />}
-                            onClick={handleOpenDialog}
+                            onClick={() => handleOpenDialog()}
                             sx={{ ml: 2 }}
                         >
                             Nuevo Usuario
@@ -475,7 +483,7 @@ export const Usuarios = () => {
                         {usuariosFiltrados.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
-                                    <Typography variant="body1" color="textSecondary">
+                                    <Typography variant="body1" color="text.secondary">
                                         {filtroBusqueda ? 
                                             'No se encontraron usuarios que coincidan con la búsqueda' : 
                                             'No hay usuarios registrados'}
@@ -494,7 +502,11 @@ export const Usuarios = () => {
                                     <TableCell>{usuario.puesto_trabajo || '-'}</TableCell>
                                     <TableCell align="right">
                                         <Tooltip title="Editar usuario">
-                                            <IconButton onClick={() => handleOpenDialog(usuario)} color="primary">
+                                            <IconButton onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleOpenDialog(usuario)
+                                            }}
+                                            color="primary">
                                                 <EditIcon />
                                             </IconButton>
                                         </Tooltip>
@@ -561,6 +573,14 @@ export const Usuarios = () => {
                                 label="Segundo Apellido"
                                 name="segundo_apellido"
                                 value={nuevoUsuario.segundo_apellido || ''}
+                                onChange={handleInputChange}
+                                margin="normal"
+                            />
+                            <TextField
+                                fullWidth
+                                label="DNI"
+                                name="dni"
+                                value={nuevoUsuario.dni || ''}
                                 onChange={handleInputChange}
                                 margin="normal"
                             />
@@ -749,6 +769,13 @@ export const Usuarios = () => {
                             name="segundo_apellido"
                             label="Segundo Apellido"
                             value={nuevoAdmin.segundo_apellido || ''}
+                            onChange={handleAdminInputChange}
+                            fullWidth
+                        />
+                        <TextField
+                            name="dni"
+                            label="DNI"
+                            value={nuevoAdmin.dni || ''}
                             onChange={handleAdminInputChange}
                             fullWidth
                         />

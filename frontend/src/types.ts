@@ -3,6 +3,7 @@ export interface Usuario {
     nombre: string;
     primer_apellido: string;
     segundo_apellido?: string | null;
+    dni?: string | null;
     email: string;
     telefono?: string | null;
     puesto_trabajo?: string | null;
