@@ -126,14 +126,14 @@ export const MiembrosGrupo = ({
     try {
       setCargando(true);
       // Fetch only active members
-      const { data } = await getMiembros(grupoId, true);
+      const { data } = await getMiembros(grupoId, !showInactive);
       setMiembros(data);
     } catch (error) {
       handleError(error, "Error al cargar los miembros del grupo");
     } finally {
       setCargando(false);
     }
-  }, [grupoId]);
+  }, [grupoId, showInactive]);
 
   // Initial data load
   useEffect(() => {
