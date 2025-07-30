@@ -428,10 +428,7 @@ export const Grupos = () => {
                         />
                     ) : (
                         <MiembrosGrupo
-                            open={true}
-                            onClose={() => setTabValue(0)}
                             grupoId={grupoSeleccionado?.id ?? 0}
-                            grupoNombre={grupoSeleccionado?.nombre ?? ''}
                             onMiembroAgregado={() => {
                                 // Refresh the members list when a member is added or removed
                                 if (grupoSeleccionado?.id) {
@@ -509,18 +506,6 @@ export const Grupos = () => {
                     {snackbar.message}
                 </Alert>
             </Snackbar>
-            
-            {grupoSeleccionado && (
-                <MiembrosGrupo
-                    open={miembrosDialogOpen}
-                    onClose={() => {
-                        setMiembrosDialogOpen(false);
-                        setGrupoSeleccionado(null);
-                    }}
-                    grupoId={grupoSeleccionado.id!}
-                    grupoNombre={grupoSeleccionado.nombre}
-                />
-            )}
         </Box>
     );
 };

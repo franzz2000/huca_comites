@@ -27,17 +27,12 @@ import {
     Edit as EditIcon, 
     Delete as DeleteIcon, 
     PersonAdd as PersonAddIcon,
-    Save as SaveIcon,
-    Close as CloseIcon 
-} from '@mui/icons-material';
+    Save as SaveIcon} from '@mui/icons-material';
 import { getUsuarios, getMiembros, createMiembro, updateMiembro } from '../services/api'; // Removed unused deleteMiembro
 import type { Usuario, Miembro } from '../types';
 
 interface MiembrosGrupoProps {
-    open: boolean;
-    onClose: () => void;
     grupoId: number | null;
-    grupoNombre: string;
     onMiembroAgregado?: () => void;
 }
 
@@ -54,7 +49,7 @@ interface SnackbarState {
     severity: 'success' | 'error' | 'info' | 'warning';
 }
 
-export const MiembrosGrupo = ({ open, onClose, grupoId, grupoNombre, onMiembroAgregado }: MiembrosGrupoProps) => {
+export const MiembrosGrupo = ({ grupoId, onMiembroAgregado }: MiembrosGrupoProps) => {
     // State for component data
     const [usuarios, setUsuarios] = useState<Usuario[]>([]);
     const [miembros, setMiembros] = useState<Miembro[]>([]);
@@ -245,17 +240,8 @@ export const MiembrosGrupo = ({ open, onClose, grupoId, grupoNombre, onMiembroAg
 
     return (
         <>
-            <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-                <DialogTitle>
-                    <Box display="flex" justifyContent="space-between" alignItems="center">
-                        <Typography variant="h6">Miembros del grupo: {grupoNombre}</Typography>
-                        <IconButton onClick={onClose}>
-                            <CloseIcon />
-                        </IconButton>
-                    </Box>
-                </DialogTitle>
-                <DialogContent>
-                    <Box mb={3} display="flex" alignItems="center">
+        <Box>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                         <Autocomplete
                             options={usuarios.filter(usuario => {
                                 // Show user if they don't have an active membership in this group
@@ -341,14 +327,8 @@ onClick={() => miembro.id && handleEliminarMiembro(miembro.id)}
                             </TableBody>
                         </Table>
                     )}
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={onClose} color="primary">
-                        Cerrar
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
+                </Box>
+            
             {/* Edit Dialog */}
             <Dialog open={edicionAbierta} onClose={handleCerrarEdicion} maxWidth="sm" fullWidth>
                 <DialogTitle>Editar miembro</DialogTitle>
