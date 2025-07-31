@@ -128,6 +128,7 @@ const createTables = (callback) => {
                             ADD COLUMN estado TEXT DEFAULT 'no_asistio'
                         `, (err) => {
                             // Ignorar el error si la columna ya existe
+                            console.log(err);
                             callback();
                         });
                     });
