@@ -220,15 +220,17 @@ app.get('/api/grupos', (req, res) => {
 
 app.post('/api/grupos', requireAdmin, (req, res) => {
     console.log('Solicitud recibida:', req.body);
-    const { nombre, descripcion } = req.body;
+    const { nombre, descripcion, fecha_creacion } = req.body;
     
     if (!nombre) {
         console.error('Error: Nombre es requerido');
         return res.status(400).json({ error: 'El nombre es requerido' });
     }
     
-    db.run('INSERT INTO grupos (nombre, descripcion) VALUES (?, ?)',
-        [nombre, descripcion || null],
+    const fechaCreacion = fecha_creacion || new Date().toISOString().slice(0, 10);
+
+    db.run('INSERT INTO grupos (nombre, descripcion, fecha_creacion) VALUES (?, ?, ?)',
+        [nombre, descripcion || null, fechaCreacion],
         function(err) {
             if (err) {
                 console.error('Error en la consulta SQL:', err);
@@ -241,7 +243,8 @@ app.post('/api/grupos', requireAdmin, (req, res) => {
             res.status(201).json({ 
                 id: this.lastID,
                 nombre,
-                descripcion: descripcion || null
+                descripcion: descripcion || null,
+                fecha_creacion: fechaCreacion
             });
         }
     );
@@ -250,14 +253,14 @@ app.post('/api/grupos', requireAdmin, (req, res) => {
 // Actualizar un grupo
 app.put('/api/grupos/:id', requireAdmin, (req, res) => {
     const { id } = req.params;
-    const { nombre, descripcion } = req.body;
+    const { nombre, descripcion, fecha_creacion } = req.body;
     
     if (!nombre) {
         return res.status(400).json({ error: 'El nombre es requerido' });
     }
     
-    db.run('UPDATE grupos SET nombre = ?, descripcion = ? WHERE id = ?',
-        [nombre, descripcion || null, id],
+    db.run('UPDATE grupos SET nombre = ?, descripcion = ?, fecha_creacion = ? WHERE id = ?',
+        [nombre, descripcion || null, fecha_creacion || null, id],
         function(err) {
             if (err) {
                 console.error('Error al actualizar el grupo:', err);
@@ -275,7 +278,8 @@ app.put('/api/grupos/:id', requireAdmin, (req, res) => {
             res.status(200).json({ 
                 id: parseInt(id),
                 nombre,
-                descripcion: descripcion || null
+                descripcion: descripcion || null,
+                fecha_creacion: fecha_creacion || null
             });
         }
     );

@@ -36,7 +36,8 @@ export const Grupos = () => {
     const [grupoEditando, setGrupoEditando] = useState<Grupo | null>(null);
     const [nuevoGrupo, setNuevoGrupo] = useState<Omit<Grupo, 'id'>>({ 
         nombre: '',
-        descripcion: null 
+        descripcion: null,
+        fecha_creacion: new Date().toISOString().slice(0, 10)
     });
     const [openDialog, setOpenDialog] = useState(false);
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ 
@@ -179,7 +180,8 @@ export const Grupos = () => {
                     setGrupoSeleccionado({
                         ...grupoSeleccionado,
                         nombre: nuevoGrupo.nombre,
-                        descripcion: nuevoGrupo.descripcion
+                        descripcion: nuevoGrupo.descripcion,
+                        fecha_creacion: nuevoGrupo.fecha_creacion
                     });
                 }
                 
@@ -191,7 +193,7 @@ export const Grupos = () => {
             }
             setOpenDialog(false);
             setGrupoEditando(null);
-            setNuevoGrupo({ nombre: '', descripcion: null });
+            setNuevoGrupo({ nombre: '', descripcion: null, fecha_creacion: new Date().toISOString().slice(0, 10) });
             // Refresh the groups list
             await cargarGrupos();
         } catch (error) {
@@ -204,7 +206,8 @@ export const Grupos = () => {
         setGrupoEditando(grupo);
         setNuevoGrupo({ 
             nombre: grupo.nombre, 
-            descripcion: grupo.descripcion 
+            descripcion: grupo.descripcion,
+            fecha_creacion: grupo.fecha_creacion?.slice(0, 10) || new Date().toISOString().slice(0, 10)
         });
         setOpenDialog(true);
     };
@@ -250,7 +253,7 @@ export const Grupos = () => {
                             startIcon={<AddIcon />}
                             onClick={() => {
                                 setGrupoEditando(null);
-                                setNuevoGrupo({ nombre: '', descripcion: null });
+                                setNuevoGrupo({ nombre: '', descripcion: null, fecha_creacion: new Date().toISOString().slice(0, 10) });
                                 setOpenDialog(true);
                             }}
                         >
@@ -404,7 +407,8 @@ export const Grupos = () => {
                                 setGrupoEditando(grupoSeleccionado);
                                 setNuevoGrupo({ 
                                     nombre: grupoSeleccionado.nombre, 
-                                    descripcion: grupoSeleccionado.descripcion 
+                                    descripcion: grupoSeleccionado.descripcion,
+                                    fecha_creacion: grupoSeleccionado.fecha_creacion?.slice(0, 10) || new Date().toISOString().slice(0, 10)
                                 });
                                 setOpenDialog(true);
                             }}
@@ -476,6 +480,16 @@ export const Grupos = () => {
                                 margin="normal"
                                 multiline
                                 rows={3}
+                            />
+                            <TextField
+                                fullWidth
+                                label="Fecha de creación"
+                                type="date"
+                                value={nuevoGrupo.fecha_creacion || ''}
+                                onChange={(e) => setNuevoGrupo({ ...nuevoGrupo, fecha_creacion: e.target.value })}
+                                margin="normal"
+                                required
+                                slotProps={{ inputLabel: { shrink: true } }}
                             />
                         </Box>
                     </DialogContent>
