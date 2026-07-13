@@ -11,8 +11,8 @@ const db = new sqlite3.Database(dbPath);
 const adminUser = {
   nombre: 'Admin',
   primer_apellido: 'User',
-  email: 'franzz2000@mail.com',
-  password: 'admin123', // Change this to a secure password
+  email: process.env.ADMIN_EMAIL || 'admin@example.com',
+  password: process.env.ADMIN_PASSWORD || 'admin123', // Configure these values in .env for production
   es_admin: 1, // 1 for admin, 0 for regular user
   puesto_trabajo: 'Administrador',
   activo: 0 // 1 for active, 0 for inactive

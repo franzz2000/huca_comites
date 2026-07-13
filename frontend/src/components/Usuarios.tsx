@@ -21,7 +21,9 @@ import {
     InputAdornment,
     Chip,
     CircularProgress,
-    LinearProgress
+    LinearProgress,
+    Checkbox,
+    FormControlLabel
 } from '@mui/material';
 import { 
     Add as AddIcon, 
@@ -32,7 +34,7 @@ import {
     CheckCircle as CheckCircleIcon,
     Cancel as CancelIcon
 } from '@mui/icons-material';
-import { getUsuarios, createUsuario, updateUsuario, deleteUsuario, getMiembros, getGrupos, updateMiembro, getEstadisticasAsistencia } from '../services/api'; 
+import { getUsuarios, createUsuario, updateUsuario, deleteUsuario, getMiembros, getGrupos, getEstadisticasAsistencia } from '../services/api';
 import type { Usuario, Miembro, Grupo } from '../types';
 
 interface GrupoUsuario extends Omit<Miembro, 'fecha_inicio' | 'fecha_fin'> {
@@ -62,12 +64,12 @@ export const Usuarios = () => {
         email: '',
         telefono: '',
         puesto_trabajo: '',
-        observaciones: ''
+        observaciones: '',
+        password: '',
+        es_admin: 0
     });
     const [gruposUsuario, setGruposUsuario] = useState<GrupoUsuario[]>([]);
     const [cargandoGrupos, setCargandoGrupos] = useState(false);
-    const [editandoMiembroId, setEditandoMiembroId] = useState<number | null>(null);
-    const [fechasEditadas, setFechasEditadas] = useState<{fecha_inicio: string; fecha_fin: string | null}>({fecha_inicio: '', fecha_fin: null});
     const [filtroBusqueda, setFiltroBusqueda] = useState('');
     const [snackbar, setSnackbar] = useState<{ 
         open: boolean; 
@@ -160,7 +162,9 @@ export const Usuarios = () => {
                 email: usuario.email,
                 telefono: usuario.telefono || '',
                 puesto_trabajo: usuario.puesto_trabajo || '',
-                observaciones: usuario.observaciones || ''
+                observaciones: usuario.observaciones || '',
+                password: '',
+                es_admin: usuario.es_admin || 0
             });
             if (usuario.id) {
                 await cargarGruposUsuario(usuario.id);
@@ -174,7 +178,9 @@ export const Usuarios = () => {
                 email: '',
                 telefono: '',
                 puesto_trabajo: '',
-                observaciones: ''
+                observaciones: '',
+                password: '',
+                es_admin: 0
             });
             setGruposUsuario([]);
         }
@@ -184,8 +190,6 @@ export const Usuarios = () => {
     const handleCloseDialog = () => {
         setOpenDialog(false);
         setUsuarioEditando(null);
-        setEditandoMiembroId(null);
-        setFechasEditadas({fecha_inicio: '', fecha_fin: null});
         setNuevoUsuario({
             nombre: '',
             primer_apellido: '',
@@ -193,7 +197,9 @@ export const Usuarios = () => {
             email: '',
             telefono: '',
             puesto_trabajo: '',
-            observaciones: ''
+            observaciones: '',
+            password: '',
+            es_admin: 0
         });
     };
 
@@ -208,10 +214,10 @@ export const Usuarios = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        if (!nuevoUsuario.nombre || !nuevoUsuario.primer_apellido || !nuevoUsuario.email) {
+        if (!nuevoUsuario.nombre || !nuevoUsuario.primer_apellido || !nuevoUsuario.email || (!usuarioEditando && !nuevoUsuario.password)) {
             setSnackbar({ 
                 open: true, 
-                message: 'Por favor complete los campos requeridos (Nombre, Primer Apellido y Email)', 
+                message: 'Por favor complete los campos requeridos (Nombre, Primer Apellido, Email y contraseña)',
                 severity: 'error' 
             });
             return;
@@ -226,7 +232,9 @@ export const Usuarios = () => {
                     email: nuevoUsuario.email,
                     telefono: nuevoUsuario.telefono || null,
                     puesto_trabajo: nuevoUsuario.puesto_trabajo || null,
-                    observaciones: nuevoUsuario.observaciones || null
+                    observaciones: nuevoUsuario.observaciones || null,
+                    password: nuevoUsuario.password,
+                    es_admin: nuevoUsuario.es_admin || 0
                 });
                 setSnackbar({ open: true, message: 'Usuario actualizado correctamente', severity: 'success' });
             } else {
@@ -237,7 +245,9 @@ export const Usuarios = () => {
                     email: nuevoUsuario.email,
                     telefono: nuevoUsuario.telefono || null,
                     puesto_trabajo: nuevoUsuario.puesto_trabajo || null,
-                    observaciones: nuevoUsuario.observaciones || null
+                    observaciones: nuevoUsuario.observaciones || null,
+                    password: nuevoUsuario.password,
+                    es_admin: nuevoUsuario.es_admin || 0
                 });
                 setSnackbar({ open: true, message: 'Usuario creado correctamente', severity: 'success' });
             }
@@ -266,47 +276,6 @@ export const Usuarios = () => {
             console.error('Error al eliminar el usuario:', error);
             mostrarMensaje('Error al eliminar el usuario', 'error');
         }
-    };
-
-    const handleEditarMiembro = (miembro: GrupoUsuario) => {
-        setEditandoMiembroId(miembro.id!);
-        setFechasEditadas({
-            fecha_inicio: miembro.fecha_inicio,
-            fecha_fin: miembro.fecha_fin
-        });
-    };
-
-    const handleCancelarEdicion = () => {
-        setEditandoMiembroId(null);
-        setFechasEditadas({fecha_inicio: '', fecha_fin: null});
-    };
-
-    const handleGuardarMiembro = async (miembro: GrupoUsuario) => {
-        try {
-            if (!miembro.id) return;
-            
-            await updateMiembro(miembro.id, {
-                fecha_inicio: fechasEditadas.fecha_inicio,
-                fecha_fin: fechasEditadas.fecha_fin || null
-            });
-            
-            if (usuarioEditando?.id) {
-                await cargarGruposUsuario(usuarioEditando.id);
-            }
-            
-            setEditandoMiembroId(null);
-            mostrarMensaje('Fechas de membresía actualizadas correctamente', 'success');
-        } catch (error) {
-            console.error('Error al actualizar la membresía:', error);
-            mostrarMensaje('Error al actualizar las fechas de membresía', 'error');
-        }
-    };
-
-    const handleFechaChange = (campo: 'fecha_inicio' | 'fecha_fin', valor: string) => {
-        setFechasEditadas(prev => ({
-            ...prev,
-            [campo]: valor || null
-        }));
     };
 
     const cargarEstadisticasGrupo = useCallback(async (usuarioId: number, grupo: GrupoUsuario) => {
@@ -508,6 +477,30 @@ export const Usuarios = () => {
                                 rows={2}
                                 sx={{ gridColumn: '1 / -1' }}
                             />
+                            <TextField
+                                fullWidth
+                                label={usuarioEditando ? 'Nueva contraseña (opcional)' : 'Contraseña'}
+                                name="password"
+                                type="password"
+                                value={nuevoUsuario.password || ''}
+                                onChange={handleInputChange}
+                                margin="normal"
+                                required={!usuarioEditando}
+                            />
+                            {(!usuarioEditando || !usuarioEditando.es_admin) && (
+                                <FormControlLabel
+                                    control={
+                                        <Checkbox
+                                            checked={Boolean(nuevoUsuario.es_admin)}
+                                            onChange={(event) => setNuevoUsuario(prev => ({
+                                                ...prev,
+                                                es_admin: event.target.checked ? 1 : 0
+                                            }))}
+                                        />
+                                    }
+                                    label={usuarioEditando ? 'Promover a administrador' : 'Crear como administrador'}
+                                />
+                            )}
                         </Box>
 
                         {usuarioEditando && (

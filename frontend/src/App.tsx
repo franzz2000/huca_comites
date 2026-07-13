@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { createTheme } from '@mui/material/styles';
 import { AuthProvider, useAuth } from './contexts';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { AdminRoute } from './components/AdminRoute';
 import { LoginPage } from './pages/LoginPage';
 import { Grupos } from './components/Grupos';
 import { Usuarios } from './components/Usuarios';
@@ -51,14 +52,16 @@ const AppLayout = () => {
           >
             Grupos
           </Button>
-          <Button 
-            color="inherit" 
-            onClick={() => navigate('/usuarios')}
-            variant={location.pathname === '/usuarios' ? 'outlined' : 'text'}
-            sx={{ mr: 2 }}
-          >
-            Usuarios
-          </Button>
+          {user.es_admin && (
+            <Button
+              color="inherit"
+              onClick={() => navigate('/usuarios')}
+              variant={location.pathname === '/usuarios' ? 'outlined' : 'text'}
+              sx={{ mr: 2 }}
+            >
+              Usuarios
+            </Button>
+          )}
           <Typography variant="subtitle1" sx={{ mr: 2 }}>
             {user.nombre} {user.primer_apellido}
           </Typography>
@@ -75,11 +78,7 @@ const AppLayout = () => {
               <Grupos />
             </ProtectedRoute>
           } />
-          <Route path="/usuarios" element={
-            <ProtectedRoute>
-              <Usuarios />
-            </ProtectedRoute>
-          } />
+          <Route path="/usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />
         </Routes>
       </Container>
       <Box component="footer" sx={{ py: 2, bgcolor: 'background.paper', mt: 'auto' }}>
@@ -102,10 +101,6 @@ function App() {
     navigate(from, { replace: true });
   }, [navigate, location.state]);
 
-  const handleRegisterSuccess = useCallback(() => {
-    navigate('/', { replace: true });
-  }, [navigate]);
-
   const handleLogout = useCallback(() => {
     navigate('/login', { replace: true });
   }, [navigate]);
@@ -115,7 +110,6 @@ function App() {
       <CssBaseline />
       <AuthProvider 
         onLoginSuccess={handleLoginSuccess}
-        onRegisterSuccess={handleRegisterSuccess}
         onLogout={handleLogout}
       >
         <Routes>

@@ -206,8 +206,9 @@ export const ReunionForm: React.FC<ReunionFormProps> = ({
 
       const asistenciasData = Object.entries(asistencias).map(([personaId, asistencia]) => ({
         persona_id: Number(personaId),
+        asistio: asistencia.estado === 'asistio',
         estado: asistencia.estado,
-        observaciones: asistencia.observaciones || null,
+        observaciones: asistencia.observaciones || undefined,
       }));
 
       await onSave(reunionData, asistenciasData);

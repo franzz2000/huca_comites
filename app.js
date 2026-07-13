@@ -4,9 +4,10 @@ const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { verifyToken } = require('./middleware/auth');
+const { verifyToken, requireAdmin } = require('./middleware/auth');
 const { createAdminUser } = require('./scripts/createAdminUser');
-//const path = require('path');
+const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 // Función para validar fechas de membresía
@@ -161,7 +162,7 @@ app.post('/api/auth/login', express.json(), (req, res) => {
             return res.status(401).json({ error: 'Credenciales inválidas' });
         }
         
-        const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET || 'your_jwt_secret_key', {
+        const token = jwt.sign({ id: user.id, es_admin: user.es_admin === 1 }, process.env.JWT_SECRET || 'your_jwt_secret_key', {
             expiresIn: '1d'
         });
         
@@ -173,7 +174,8 @@ app.post('/api/auth/login', express.json(), (req, res) => {
                 nombre: user.nombre,
                 email: user.email,
                 primer_apellido: user.primer_apellido,
-                segundo_apellido: user.segundo_apellido
+                segundo_apellido: user.segundo_apellido,
+                es_admin: user.es_admin === 1
             }
         });
     });
@@ -193,7 +195,7 @@ app.get('/api/grupos', (req, res) => {
     });
 });
 
-app.post('/api/grupos', (req, res) => {
+app.post('/api/grupos', requireAdmin, (req, res) => {
     console.log('Solicitud recibida:', req.body);
     const { nombre, descripcion } = req.body;
     
@@ -223,7 +225,7 @@ app.post('/api/grupos', (req, res) => {
 });
 
 // Actualizar un grupo
-app.put('/api/grupos/:id', (req, res) => {
+app.put('/api/grupos/:id', requireAdmin, (req, res) => {
     const { id } = req.params;
     const { nombre, descripcion } = req.body;
     
@@ -257,7 +259,7 @@ app.put('/api/grupos/:id', (req, res) => {
 });
 
 // Eliminar un grupo
-app.delete('/api/grupos/:id', (req, res) => {
+app.delete('/api/grupos/:id', requireAdmin, (req, res) => {
     const { id } = req.params;
     
     db.run('DELETE FROM grupos WHERE id = ?', [id], function(err) {
@@ -280,7 +282,7 @@ app.delete('/api/grupos/:id', (req, res) => {
 
 // Obtener todos los usuarios
 app.get('/api/usuarios', (req, res) => {
-    db.all('SELECT * FROM personas', [], (err, rows) => {
+    db.all('SELECT id, nombre, primer_apellido, segundo_apellido, email, es_admin, telefono, puesto_trabajo, observaciones, activo FROM personas', [], (err, rows) => {
         if (err) {
             console.error('Error al obtener usuarios:', err);
             return res.status(500).json({ error: 'Error al obtener los usuarios', details: err.message });
@@ -292,7 +294,7 @@ app.get('/api/usuarios', (req, res) => {
 // Obtener un usuario por ID
 app.get('/api/usuarios/:id', (req, res) => {
     const { id } = req.params;
-    db.get('SELECT * FROM personas WHERE id = ?', [id], (err, row) => {
+    db.get('SELECT id, nombre, primer_apellido, segundo_apellido, email, es_admin, telefono, puesto_trabajo, observaciones, activo FROM personas WHERE id = ?', [id], (err, row) => {
         if (err) {
             console.error('Error al obtener usuario:', err);
             return res.status(500).json({ error: 'Error al obtener el usuario', details: err.message });
@@ -305,7 +307,7 @@ app.get('/api/usuarios/:id', (req, res) => {
 });
 
 // Crear un nuevo usuario
-app.post('/api/usuarios', (req, res) => {
+app.post('/api/usuarios', requireAdmin, async (req, res) => {
     const { 
         nombre, 
         primer_apellido, 
@@ -313,23 +315,28 @@ app.post('/api/usuarios', (req, res) => {
         email, 
         telefono, 
         puesto_trabajo, 
-        observaciones 
+        observaciones,
+        password,
+        es_admin
     } = req.body;
     
-    if (!nombre || !primer_apellido || !email) {
+    if (!nombre || !primer_apellido || !email || !password) {
         return res.status(400).json({ 
-            error: 'Nombre, primer apellido y email son campos requeridos' 
+            error: 'Nombre, primer apellido, email y contraseña son campos requeridos'
         });
     }
     
+    const hashedPassword = await bcrypt.hash(password, 10);
     db.run(
-        'INSERT INTO personas (nombre, primer_apellido, segundo_apellido, email, telefono, puesto_trabajo, observaciones) ' +
-        'VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO personas (nombre, primer_apellido, segundo_apellido, email, password, es_admin, telefono, puesto_trabajo, observaciones) ' +
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
             nombre, 
             primer_apellido, 
             segundo_apellido || null, 
             email,
+            hashedPassword,
+            es_admin ? 1 : 0,
             telefono || null,
             puesto_trabajo || null,
             observaciones || null
@@ -344,7 +351,7 @@ app.post('/api/usuarios', (req, res) => {
             }
             
             // Devolver el usuario creado con todos sus campos
-            db.get('SELECT * FROM personas WHERE id = ?', [this.lastID], (err, row) => {
+            db.get('SELECT id, nombre, primer_apellido, segundo_apellido, email, es_admin, telefono, puesto_trabajo, observaciones, activo FROM personas WHERE id = ?', [this.lastID], (err, row) => {
                 if (err || !row) {
                     return res.status(201).json({ 
                         id: this.lastID,
@@ -364,7 +371,7 @@ app.post('/api/usuarios', (req, res) => {
 });
 
 // Actualizar un usuario
-app.put('/api/usuarios/:id', (req, res) => {
+app.put('/api/usuarios/:id', requireAdmin, async (req, res) => {
     const { id } = req.params;
     const { 
         nombre, 
@@ -373,7 +380,9 @@ app.put('/api/usuarios/:id', (req, res) => {
         email, 
         telefono, 
         puesto_trabajo, 
-        observaciones 
+        observaciones,
+        password,
+        es_admin
     } = req.body;
     
     if (!nombre || !primer_apellido || !email) {
@@ -390,9 +399,10 @@ app.put('/api/usuarios/:id', (req, res) => {
             email = ?, 
             telefono = ?, 
             puesto_trabajo = ?, 
-            observaciones = ? 
+            observaciones = ?${password ? ', password = ?' : ''}${es_admin ? ', es_admin = 1' : ''}
         WHERE id = ?
     `;
+    const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
     
     db.run(
         updateQuery,
@@ -404,6 +414,7 @@ app.put('/api/usuarios/:id', (req, res) => {
             telefono || null,
             puesto_trabajo || null,
             observaciones || null,
+            ...(password ? [hashedPassword] : []),
             id
         ],
         function(err) {
@@ -420,7 +431,7 @@ app.put('/api/usuarios/:id', (req, res) => {
             }
             
             // Devolver el usuario actualizado con todos sus campos
-            db.get('SELECT * FROM personas WHERE id = ?', [id], (err, row) => {
+            db.get('SELECT id, nombre, primer_apellido, segundo_apellido, email, es_admin, telefono, puesto_trabajo, observaciones, activo FROM personas WHERE id = ?', [id], (err, row) => {
                 if (err || !row) {
                     return res.json({
                         id: parseInt(id),
@@ -440,7 +451,7 @@ app.put('/api/usuarios/:id', (req, res) => {
 });
 
 // Eliminar un usuario
-app.delete('/api/usuarios/:id', (req, res) => {
+app.delete('/api/usuarios/:id', requireAdmin, (req, res) => {
     const { id } = req.params;
     
     // Primero verificamos si el usuario existe y si es administrador
@@ -534,7 +545,7 @@ app.get('/api/miembros', (req, res) => {
 });
 
 // Agregar un miembro a un grupo
-app.post('/api/miembros', (req, res) => {
+app.post('/api/miembros', requireAdmin, (req, res) => {
     const { persona_id, grupo_id, fecha_inicio, fecha_fin, activo } = req.body;
     
     if (!persona_id || !grupo_id) {
@@ -630,7 +641,7 @@ app.post('/api/miembros', (req, res) => {
 });
 
 // Actualizar la membresía de un usuario en un grupo
-app.put('/api/miembros/:id', (req, res) => {
+app.put('/api/miembros/:id', requireAdmin, (req, res) => {
     const { id } = req.params;
     const { fecha_inicio, fecha_fin, activo } = req.body;
     
@@ -760,7 +771,7 @@ app.put('/api/miembros/:id', (req, res) => {
 });
 
 // Eliminar un miembro de un grupo
-app.delete('/api/miembros/:id', (req, res) => {
+app.delete('/api/miembros/:id', requireAdmin, (req, res) => {
     const { id } = req.params;
     
     db.run('DELETE FROM miembros WHERE id = ?', [id], function(err) {
@@ -781,7 +792,7 @@ app.delete('/api/miembros/:id', (req, res) => {
 });
 
 // Aplicar el middleware a la ruta de reuniones
-app.post('/api/reuniones', (req, res) => {
+app.post('/api/reuniones', requireAdmin, (req, res) => {
     console.log('\n=== INICIO DE SOLICITUD DE REUNIÓN ===');
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
     console.log('Raw request body:', req.rawBody || 'No raw body');
@@ -921,7 +932,7 @@ app.post('/api/reuniones', (req, res) => {
     }
 });
 
-app.post('/api/reuniones/:reunionId/asistencia', (req, res) => {
+app.post('/api/reuniones/:reunionId/asistencia', requireAdmin, (req, res) => {
     const { reunionId } = req.params;
     const { persona_id, asistio } = req.body;
     
@@ -1031,7 +1042,7 @@ app.get('/api/reuniones/:id', (req, res) => {
     });
 });
 
-app.put('/api/reuniones/:id', (req, res) => {
+app.put('/api/reuniones/:id', requireAdmin, (req, res) => {
     const { id } = req.params;
     const { fecha, hora, ubicacion, descripcion } = req.body;
     
@@ -1061,7 +1072,7 @@ app.put('/api/reuniones/:id', (req, res) => {
     });
 });
 
-app.delete('/api/reuniones/:id', (req, res) => {
+app.delete('/api/reuniones/:id', requireAdmin, (req, res) => {
     const { id } = req.params;
     
     db.run('DELETE FROM reuniones WHERE id = ?', [id], function(err) {
@@ -1078,7 +1089,7 @@ app.delete('/api/reuniones/:id', (req, res) => {
     });
 });
 
-app.post('/api/reuniones/:id/asistencias', (req, res) => {
+app.post('/api/reuniones/:id/asistencias', requireAdmin, (req, res) => {
     const { id: reunion_id } = req.params;
     const { asistencias } = req.body;
     
@@ -1169,6 +1180,14 @@ app.get('/api/usuarios/:usuarioId/grupos/:grupoId/estadisticas', verifyToken, (r
         });
     });
 });
+
+// En producción, Express entrega la compilación del cliente React y permite
+// acceder directamente a sus rutas (por ejemplo, /usuarios).
+const frontendDist = path.join(__dirname, 'frontend', 'dist');
+if (fs.existsSync(frontendDist)) {
+    app.use(express.static(frontendDist));
+    app.get('*', (req, res) => res.sendFile(path.join(frontendDist, 'index.html')));
+}
 
 // Inicializar la base de datos y comenzar el servidor
 const PORT = process.env.PORT || 3001;

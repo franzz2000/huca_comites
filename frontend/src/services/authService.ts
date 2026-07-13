@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = `${import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:3001' : '')}/api`;
 
 export interface User {
   id: number;
@@ -8,6 +8,7 @@ export interface User {
   nombre: string;
   primer_apellido: string;
   segundo_apellido?: string;
+  es_admin: boolean;
   token: string;
 }
 

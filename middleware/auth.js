@@ -26,8 +26,16 @@ exports.verifyToken = async (req, res, next) => {
     try {
         const decoded = await promisify(jwt.verify)(token, JWT_SECRET);
         req.userId = decoded.id;
+        req.isAdmin = decoded.es_admin === true;
         return next();
     } catch (err) {
         return res.status(401).json({ error: 'Invalid token' });
     }
+};
+
+exports.requireAdmin = (req, res, next) => {
+    if (!req.isAdmin) {
+        return res.status(403).json({ error: 'Se requieren permisos de administrador' });
+    }
+    return next();
 };

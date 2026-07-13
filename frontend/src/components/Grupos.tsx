@@ -21,8 +21,6 @@ import {
     Tabs,
     Tab,
     LinearProgress,
-    Tooltip,
-    Chip,
 } from '@mui/material';
 import { Delete as DeleteIcon, Edit as EditIcon, Add as AddIcon, People as PeopleIcon, Search as SearchIcon, Event as EventIcon, Group as GroupIcon } from '@mui/icons-material';
 import { getGrupos, createGrupo, updateGrupo, deleteGrupo, getMiembros, getReuniones, getAsistencias } from '../services/api';

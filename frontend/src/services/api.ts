@@ -1,8 +1,8 @@
 import axios from 'axios';
 import type { Grupo, Usuario, Miembro, Reunion, Asistencia } from '../types';
 
-// URL directa al backend
-const API_URL = 'http://localhost:3001';
+// En Docker la API comparte origen con el cliente; en desarrollo usa el backend local.
+const API_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:3001' : '');
 
 export const api = axios.create({
     baseURL: API_URL,
