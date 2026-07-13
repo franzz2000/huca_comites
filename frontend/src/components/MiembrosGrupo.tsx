@@ -125,8 +125,9 @@ export const MiembrosGrupo = ({
 
     try {
       setCargando(true);
-      // Fetch only active members
-      const { data } = await getMiembros(grupoId, !showInactive);
+      // Al activar el filtro, pedir el histórico completo. Sin él, la API
+      // conserva el comportamiento habitual de devolver solo los activos.
+      const { data } = await getMiembros(grupoId, undefined, showInactive);
       setMiembros(data);
     } catch (error) {
       handleError(error, "Error al cargar los miembros del grupo");

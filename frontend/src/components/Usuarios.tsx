@@ -295,10 +295,12 @@ export const Usuarios = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        if (!nuevoUsuario.nombre || !nuevoUsuario.primer_apellido || !nuevoUsuario.email || (!usuarioEditando && !nuevoUsuario.password)) {
+        if (!nuevoUsuario.nombre || !nuevoUsuario.primer_apellido || !nuevoUsuario.email || (!usuarioEditando && Boolean(nuevoUsuario.es_admin) && !nuevoUsuario.password)) {
             setSnackbar({ 
                 open: true, 
-                message: 'Por favor complete los campos requeridos (Nombre, Primer Apellido, Email y contraseña)',
+                message: nuevoUsuario.es_admin
+                    ? 'Para crear un administrador debe indicar nombre, primer apellido, email y contraseña'
+                    : 'Por favor complete los campos requeridos (Nombre, Primer Apellido y Email)',
                 severity: 'error' 
             });
             return;
@@ -315,7 +317,7 @@ export const Usuarios = () => {
                     telefono: nuevoUsuario.telefono || null,
                     puesto_trabajo: nuevoUsuario.puesto_trabajo || null,
                     observaciones: nuevoUsuario.observaciones || null,
-                    password: nuevoUsuario.password,
+                    password: nuevoUsuario.es_admin ? nuevoUsuario.password : undefined,
                     es_admin: nuevoUsuario.es_admin || 0
                 });
                 setSnackbar({ open: true, message: 'Usuario actualizado correctamente', severity: 'success' });
@@ -329,7 +331,7 @@ export const Usuarios = () => {
                     telefono: nuevoUsuario.telefono || null,
                     puesto_trabajo: nuevoUsuario.puesto_trabajo || null,
                     observaciones: nuevoUsuario.observaciones || null,
-                    password: nuevoUsuario.password,
+                    password: nuevoUsuario.es_admin ? nuevoUsuario.password : undefined,
                     es_admin: nuevoUsuario.es_admin || 0
                 });
                 setSnackbar({ open: true, message: 'Usuario creado correctamente', severity: 'success' });
@@ -598,6 +600,7 @@ export const Usuarios = () => {
                                 rows={2}
                                 sx={{ gridColumn: '1 / -1' }}
                             />
+                            {Boolean(nuevoUsuario.es_admin) && (
                             <TextField
                                 fullWidth
                                 label={usuarioEditando ? 'Nueva contraseña (opcional)' : 'Contraseña'}
@@ -608,6 +611,7 @@ export const Usuarios = () => {
                                 margin="normal"
                                 required={!usuarioEditando}
                             />
+                            )}
                             {(!usuarioEditando || !usuarioEditando.es_admin) && (
                                 <FormControlLabel
                                     control={

@@ -123,14 +123,32 @@ const createTables = (callback) => {
                     `, (err) => {
                         if (err) return callback(err);
                         
-                        // Agregar la columna estado si no existe
-                        db.run(`
-                            ALTER TABLE asistencias 
-                            ADD COLUMN estado TEXT DEFAULT 'no_asistio'
-                        `, (err) => {
-                            // Ignorar el error si la columna ya existe
-                            console.log(err);
-                            callback();
+                        // Completar las tablas creadas por versiones anteriores de la aplicación.
+                        // CREATE TABLE IF NOT EXISTS no añade columnas a una tabla ya existente.
+                        db.all('PRAGMA table_info(asistencias)', (err, columnas) => {
+                            if (err) return callback(err);
+
+                            const existentes = new Set(columnas.map(columna => columna.name));
+                            const definiciones = [
+                                ['estado', "estado TEXT DEFAULT 'no_asistio'"],
+                                ['observaciones', 'observaciones TEXT'],
+                                // Sin DEFAULT CURRENT_TIMESTAMP porque SQLite no lo permite al añadir
+                                // columnas en algunas versiones antiguas. Se actualiza al guardar.
+                                ['updated_at', 'updated_at DATETIME']
+                            ];
+                            const pendientes = definiciones.filter(([nombre]) => !existentes.has(nombre));
+
+                            const agregarSiguiente = () => {
+                                const siguiente = pendientes.shift();
+                                if (!siguiente) return callback();
+
+                                db.run(`ALTER TABLE asistencias ADD COLUMN ${siguiente[1]}`, (alterErr) => {
+                                    if (alterErr) return callback(alterErr);
+                                    agregarSiguiente();
+                                });
+                            };
+
+                            agregarSiguiente();
                         });
                     });
                 });
@@ -160,6 +178,10 @@ app.post('/api/auth/login', express.json(), (req, res) => {
         const isPasswordValid = await bcrypt.compare(password, user.password || '');
         
         if (!isPasswordValid) {
+            return res.status(401).json({ error: 'Credenciales inválidas' });
+        }
+
+        if (user.es_admin !== 1) {
             return res.status(401).json({ error: 'Credenciales inválidas' });
         }
         
@@ -321,13 +343,17 @@ app.post('/api/usuarios', requireAdmin, async (req, res) => {
         es_admin
     } = req.body;
     
-    if (!nombre || !primer_apellido || !email || !password) {
+    const esAdmin = es_admin === true || es_admin === 1;
+
+    if (!nombre || !primer_apellido || !email || (esAdmin && !password)) {
         return res.status(400).json({ 
-            error: 'Nombre, primer apellido, email y contraseña son campos requeridos'
+            error: esAdmin
+                ? 'Nombre, primer apellido, email y contraseña son campos requeridos para un administrador'
+                : 'Nombre, primer apellido y email son campos requeridos'
         });
     }
     
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = esAdmin ? await bcrypt.hash(password, 10) : null;
     db.run(
         'INSERT INTO personas (nombre, primer_apellido, segundo_apellido, email, password, es_admin, telefono, puesto_trabajo, observaciones) ' +
         'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -337,7 +363,7 @@ app.post('/api/usuarios', requireAdmin, async (req, res) => {
             segundo_apellido || null, 
             email,
             hashedPassword,
-            es_admin ? 1 : 0,
+            esAdmin ? 1 : 0,
             telefono || null,
             puesto_trabajo || null,
             observaciones || null
