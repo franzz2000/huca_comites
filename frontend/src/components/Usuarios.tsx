@@ -120,6 +120,7 @@ export const Usuarios = () => {
             (usuario.observaciones?.toLowerCase().includes(busqueda) || false)
         );
     });
+    const totalAdministradores = usuarios.filter(usuario => Boolean(usuario.es_admin)).length;
 
     const cargarUsuarios = useCallback(async () => {
         try {
@@ -495,11 +496,11 @@ export const Usuarios = () => {
                                                 </IconButton>
                                             </Tooltip>
                                         )}
-                                        <Tooltip title={usuario.activo ? "Desactivar usuario" : "Activar usuario"}>
+                                        <Tooltip title={usuario.es_admin && totalAdministradores <= 1 ? "No se puede eliminar el último administrador" : "Eliminar usuario"}>
                                             <IconButton 
                                                 onClick={() => handleEliminar(usuario.id!)} 
                                                 color="error"
-                                                disabled={!usuario.id || usuario.id === 1}
+                                                disabled={!usuario.id || (Boolean(usuario.es_admin) && totalAdministradores <= 1)}
                                             >
                                                 <DeleteIcon />
                                             </IconButton>

@@ -470,14 +470,7 @@ app.delete('/api/usuarios/:id', requireAdmin, (req, res) => {
         }
         
         // Verificar si el usuario es administrador (es_admin = 1)
-        if (user.es_admin === 1) {
-            return res.status(403).json({ 
-                error: 'No se puede eliminar un usuario administrador' 
-            });
-        }
-        
-        // Si no es administrador, proceder con la eliminación
-        db.run('DELETE FROM personas WHERE id = ?', [id], function(err) {
+        const eliminarUsuario = () => db.run('DELETE FROM personas WHERE id = ?', [id], function(err) {
             if (err) {
                 console.error('Error al eliminar usuario:', err);
                 return res.status(500).json({ 
@@ -488,6 +481,24 @@ app.delete('/api/usuarios/:id', requireAdmin, (req, res) => {
             
             res.status(200).json({ message: 'Usuario eliminado correctamente' });
         });
+
+        // Un administrador solo se puede eliminar si existe otro administrador.
+        if (user.es_admin === 1) {
+            return db.get('SELECT COUNT(*) AS total FROM personas WHERE es_admin = 1', (countErr, row) => {
+                if (countErr) {
+                    console.error('Error al contar administradores:', countErr);
+                    return res.status(500).json({ error: 'Error al verificar los administradores' });
+                }
+
+                if (row.total <= 1) {
+                    return res.status(403).json({ error: 'No se puede eliminar el último usuario administrador' });
+                }
+
+                eliminarUsuario();
+            });
+        }
+
+        eliminarUsuario();
     });
 });
 
