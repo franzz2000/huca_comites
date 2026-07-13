@@ -65,10 +65,11 @@ export const createAdminUser = (data: Omit<Usuario, 'id'> & { password: string }
   api.post('/api/admin/users', data);
 
 // Miembros
-export const getMiembros = (grupoId?: number, activo?: boolean): Promise<ApiResponse<Miembro[]>> => {
+export const getMiembros = (grupoId?: number, activo?: boolean, incluirHistorico = false): Promise<ApiResponse<Miembro[]>> => {
     const params = new URLSearchParams();
     if (grupoId) params.append('grupoId', grupoId.toString());
     if (activo !== undefined) params.append('activo', activo.toString());
+    if (incluirHistorico) params.append('incluirHistorico', 'true');
     
     const queryString = params.toString();
     return api.get(`/api/miembros${queryString ? `?${queryString}` : ''}`);

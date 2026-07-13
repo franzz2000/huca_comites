@@ -504,7 +504,7 @@ app.delete('/api/usuarios/:id', requireAdmin, (req, res) => {
 
 // Obtener miembros de un grupo
 app.get('/api/miembros', (req, res) => {
-    const { grupoId, activo } = req.query;
+    const { grupoId, activo, incluirHistorico } = req.query;
     let query = 'SELECT m.*, p.nombre as persona_nombre, p.primer_apellido, p.segundo_apellido, p.email as persona_email, p.telefono, p.puesto_trabajo, p.observaciones FROM miembros m ' +
                 'JOIN personas p ON m.persona_id = p.id';
     const params = [];
@@ -515,9 +515,9 @@ app.get('/api/miembros', (req, res) => {
         params.push(grupoId);
     }
     
-    // Por defecto, mostrar solo miembros activos (sin fecha_fin o con fecha_fin en el futuro)
-    // a menos que se especifique activo=false
-    if (activo === undefined || activo === 'true') {
+    // Por defecto, mostrar solo miembros activos. El histórico se solicita
+    // explícitamente para no cambiar el comportamiento de las vistas existentes.
+    if (incluirHistorico !== 'true' && (activo === undefined || activo === 'true')) {
         conditions.push('m.activo = 1');
     } else if (activo === 'false') {
         conditions.push('m.activo = 0');

@@ -204,7 +204,7 @@ export const Usuarios = () => {
             const gruposResponse = await getGrupos();
             const gruposData: Grupo[] = gruposResponse.data;
             
-            const response = await getMiembros(undefined, undefined);
+            const response = await getMiembros(undefined, undefined, true);
             const miembros = response.data.filter((m: Miembro) => m.persona_id === usuarioId);
             
             const grupos: GrupoUsuario[] = miembros
@@ -216,9 +216,10 @@ export const Usuarios = () => {
                         grupo_nombre: grupo?.nombre || `Grupo ID: ${m.grupo_id}`,
                         fecha_inicio: m.fecha_inicio,
                         fecha_fin: m.fecha_fin || null,
-                        activo: !m.fecha_fin
+                        activo: Boolean(m.activo)
                     };
-                });
+                })
+                .sort((a, b) => Number(b.activo) - Number(a.activo) || b.fecha_inicio.localeCompare(a.fecha_inicio));
             
             setGruposUsuario(grupos);
         } catch (error) {
@@ -642,6 +643,7 @@ export const Usuarios = () => {
                                             <TableHead>
                                                 <TableRow>
                                                     <TableCell>Grupo</TableCell>
+                                                    <TableCell>Periodo</TableCell>
                                                     <TableCell>Estado</TableCell>
                                                     <TableCell>Asistencia</TableCell>
                                                     <TableCell>Acciones</TableCell>
@@ -649,8 +651,11 @@ export const Usuarios = () => {
                                             </TableHead>
                                             <TableBody>
                                                 {gruposUsuario.map((grupo) => (
-                                                    <TableRow key={grupo.grupo_id}>
+                                                    <TableRow key={grupo.id}>
                                                         <TableCell>{grupo.grupo_nombre}</TableCell>
+                                                        <TableCell>
+                                                            {grupo.fecha_inicio} — {grupo.fecha_fin || 'Actualidad'}
+                                                        </TableCell>
                                                         <TableCell>
                                                             {grupo.activo ? (
                                                                 <Chip label="Activo" color="success" size="small" />
