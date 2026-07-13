@@ -33,8 +33,6 @@ import {
     Delete as DeleteIcon, 
     Search as SearchIcon,
     Group as GroupIcon,
-    CheckCircle as CheckCircleIcon,
-    Cancel as CancelIcon,
     VpnKey as VpnKeyIcon
 } from '@mui/icons-material';
 import { getUsuarios, createUsuario, updateUsuario, deleteUsuario, getMiembros, getGrupos, getEstadisticasAsistencia } from '../services/api';
@@ -650,7 +648,6 @@ export const Usuarios = () => {
                                                     <TableCell>Periodo</TableCell>
                                                     <TableCell>Estado</TableCell>
                                                     <TableCell>Asistencia</TableCell>
-                                                    <TableCell>Acciones</TableCell>
                                                 </TableRow>
                                             </TableHead>
                                             <TableBody>
@@ -713,21 +710,6 @@ export const Usuarios = () => {
                                                                     Sin datos de asistencia
                                                                 </Typography>
                                                             )}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Tooltip title={grupo.activo ? "Desactivar grupo" : "Activar grupo"}>
-                                                                <IconButton
-                                                                    size="small"
-                                                                    onClick={() => {
-                                                                        const updatedGrupos = gruposUsuario.map(g => 
-                                                                            g.grupo_id === grupo.grupo_id ? { ...g, activo: !g.activo } : g
-                                                                        );
-                                                                        setGruposUsuario(updatedGrupos);
-                                                                    }}
-                                                                >
-                                                                    {grupo.activo ? <CancelIcon color="error" /> : <CheckCircleIcon color="success" />}
-                                                                </IconButton>
-                                                            </Tooltip>
                                                         </TableCell>
                                                     </TableRow>
                                                 ))}
