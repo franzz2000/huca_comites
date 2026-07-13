@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '../services/api';
 import {
     Box,
     Button,
@@ -24,7 +23,9 @@ import {
     CircularProgress,
     LinearProgress,
     Checkbox,
-    FormControlLabel
+    FormControlLabel,
+    Tooltip,
+    Switch
 } from '@mui/material';
 import { 
     Add as AddIcon, 
@@ -93,7 +94,7 @@ export const Usuarios = () => {
         password: '',
         telefono: '',
         puesto_trabajo: 'Administrador',
-        es_admin: true,
+        es_admin: 1,
         activo: true
     });
     const [openPasswordDialog, setOpenPasswordDialog] = useState(false);
@@ -140,6 +141,58 @@ export const Usuarios = () => {
             message: mensaje,
             severity: severidad
         });
+    };
+
+    const handleOpenAdminDialog = () => {
+        setNuevoAdmin({
+            nombre: '', primer_apellido: '', segundo_apellido: '', dni: '', email: '', password: '',
+            telefono: '', puesto_trabajo: 'Administrador', es_admin: 1, activo: true
+        });
+        setOpenAdminDialog(true);
+    };
+
+    const handleCloseAdminDialog = () => setOpenAdminDialog(false);
+
+    const handleAdminInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = event.target;
+        setNuevoAdmin(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleCreateAdmin = async () => {
+        try {
+            await createUsuario(nuevoAdmin);
+            mostrarMensaje('Administrador creado correctamente', 'success');
+            handleCloseAdminDialog();
+            await cargarUsuarios();
+        } catch (error) {
+            console.error('Error al crear administrador:', error);
+            mostrarMensaje('Error al crear el administrador', 'error');
+        }
+    };
+
+    const handleOpenPasswordDialog = (usuario: Usuario) => {
+        if (!usuario.id) return;
+        setPasswordData({ id: usuario.id, nuevaContrasena: '', confirmarContrasena: '' });
+        setPasswordError('');
+        setOpenPasswordDialog(true);
+    };
+
+    const handleChangePassword = async () => {
+        if (passwordData.nuevaContrasena !== passwordData.confirmarContrasena) {
+            setPasswordError('Las contraseñas no coinciden');
+            return;
+        }
+        const usuario = usuarios.find(item => item.id === passwordData.id);
+        if (!usuario) return;
+
+        try {
+            await updateUsuario(usuario.id!, { ...usuario, password: passwordData.nuevaContrasena });
+            mostrarMensaje('Contraseña actualizada correctamente', 'success');
+            setOpenPasswordDialog(false);
+        } catch (error) {
+            console.error('Error al cambiar contraseña:', error);
+            setPasswordError('No se pudo actualizar la contraseña');
+        }
     };
 
     const cargarGruposUsuario = useCallback(async (usuarioId: number) => {

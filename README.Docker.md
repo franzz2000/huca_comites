@@ -4,7 +4,14 @@ El contenedor construye el cliente React y lo sirve desde la misma aplicación E
 
 ## Configuración
 
-Cree un archivo `.env` en la raíz del proyecto con valores seguros:
+Copie `.env.example` como `.env` en la raíz del proyecto y sustituya sus valores de ejemplo:
+
+```bash
+cp .env.example .env
+chmod 600 .env
+```
+
+El archivo incluye una configuración base como esta:
 
 ```env
 JWT_SECRET=una_clave_larga_aleatoria

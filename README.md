@@ -140,7 +140,12 @@ tar -xzf ~/huca-comites.tar.gz -C ~/docker/huca_comites
 cd ~/docker/huca_comites
 ```
 
-Crea el archivo `.env` únicamente en el servidor, con un secreto JWT y credenciales de administrador seguros:
+Crea el archivo `.env` únicamente en el servidor a partir de la plantilla y establece un secreto JWT y credenciales de administrador seguros:
+
+```bash
+cp .env.example .env
+chmod 600 .env
+```
 
 ```env
 JWT_SECRET=una_clave_larga_y_aleatoria

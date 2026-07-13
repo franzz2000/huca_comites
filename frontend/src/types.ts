@@ -10,6 +10,7 @@ export interface Usuario {
     observaciones?: string | null;
     es_admin?: number;
     password?: string;
+    activo?: boolean;
 }
 
 export interface Grupo {
