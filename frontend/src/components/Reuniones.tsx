@@ -46,7 +46,7 @@ interface ReunionesProps {
   grupoNombre: string;
 }
 
-export const Reuniones: React.FC<ReunionesProps> = ({ grupoId, miembros, grupoNombre }) => {
+export const Reuniones: React.FC<ReunionesProps> = ({ grupoId, miembros }) => {
   const [reuniones, setReuniones] = useState<Array<Reunion & { asistencias?: Asistencia[] }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -214,7 +214,7 @@ export const Reuniones: React.FC<ReunionesProps> = ({ grupoId, miembros, grupoNo
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h5" component="h2">
-          Reuniones del grupo: {grupoNombre}
+          Reuniones del grupo:
         </Typography>
         <Button
           variant="contained"

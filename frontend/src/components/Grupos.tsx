@@ -9,6 +9,7 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
+    InputAdornment,
     Table,
     TableBody,
     TableCell,
@@ -43,7 +44,7 @@ export const Grupos = () => {
         message: '', 
         severity: 'success' 
     });
-    const [miembrosDialogOpen, setMiembrosDialogOpen] = useState(false);
+    //const [miembrosDialogOpen, setMiembrosDialogOpen] = useState(false);
     const [grupoSeleccionado, setGrupoSeleccionado] = useState<Grupo | null>(null);
     const [filtroBusqueda, setFiltroBusqueda] = useState('');
     const [tabValue, setTabValue] = useState(0);
@@ -265,8 +266,14 @@ export const Grupos = () => {
                             placeholder="Buscar grupos..."
                             value={filtroBusqueda}
                             onChange={(e) => setFiltroBusqueda(e.target.value)}
-                            InputProps={{
-                                startAdornment: <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />,
+                            slotProps={{
+                              input: {
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />
+                                  </InputAdornment>
+                                ),
+                              },
                             }}
                             sx={{
                                 '& .MuiOutlinedInput-root': {
@@ -428,10 +435,7 @@ export const Grupos = () => {
                         />
                     ) : (
                         <MiembrosGrupo
-                            open={true}
-                            onClose={() => setTabValue(0)}
                             grupoId={grupoSeleccionado?.id ?? 0}
-                            grupoNombre={grupoSeleccionado?.nombre ?? ''}
                             onMiembroAgregado={() => {
                                 // Refresh the members list when a member is added or removed
                                 if (grupoSeleccionado?.id) {
@@ -509,18 +513,6 @@ export const Grupos = () => {
                     {snackbar.message}
                 </Alert>
             </Snackbar>
-            
-            {grupoSeleccionado && (
-                <MiembrosGrupo
-                    open={miembrosDialogOpen}
-                    onClose={() => {
-                        setMiembrosDialogOpen(false);
-                        setGrupoSeleccionado(null);
-                    }}
-                    grupoId={grupoSeleccionado.id!}
-                    grupoNombre={grupoSeleccionado.nombre}
-                />
-            )}
         </Box>
     );
 };

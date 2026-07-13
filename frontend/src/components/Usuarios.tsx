@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { api } from '../services/api';
 import {
     Box,
     Button,
@@ -32,7 +33,8 @@ import {
     Search as SearchIcon,
     Group as GroupIcon,
     CheckCircle as CheckCircleIcon,
-    Cancel as CancelIcon
+    Cancel as CancelIcon,
+    VpnKey as VpnKeyIcon
 } from '@mui/icons-material';
 import { getUsuarios, createUsuario, updateUsuario, deleteUsuario, getMiembros, getGrupos, getEstadisticasAsistencia } from '../services/api';
 import type { Usuario, Miembro, Grupo } from '../types';
@@ -61,6 +63,7 @@ export const Usuarios = () => {
         nombre: '',
         primer_apellido: '',
         segundo_apellido: '',
+        dni: '',
         email: '',
         telefono: '',
         puesto_trabajo: '',
@@ -80,6 +83,26 @@ export const Usuarios = () => {
         message: '', 
         severity: 'info' 
     });
+    const [openAdminDialog, setOpenAdminDialog] = useState(false);
+    const [nuevoAdmin, setNuevoAdmin] = useState<Omit<Usuario, 'id'> & { password: string }>({ 
+        nombre: '',
+        primer_apellido: '',
+        segundo_apellido: '',
+        dni: '',
+        email: '',
+        password: '',
+        telefono: '',
+        puesto_trabajo: 'Administrador',
+        es_admin: true,
+        activo: true
+    });
+    const [openPasswordDialog, setOpenPasswordDialog] = useState(false);
+    const [passwordData, setPasswordData] = useState({
+        id: 0,
+        nuevaContrasena: '',
+        confirmarContrasena: ''
+    });
+    const [passwordError, setPasswordError] = useState('');
 
     const usuariosFiltrados = usuarios.filter(usuario => {
         const busqueda = filtroBusqueda.toLowerCase();
@@ -159,6 +182,7 @@ export const Usuarios = () => {
                 nombre: usuario.nombre,
                 primer_apellido: usuario.primer_apellido,
                 segundo_apellido: usuario.segundo_apellido || '',
+                dni: usuario.dni || '',
                 email: usuario.email,
                 telefono: usuario.telefono || '',
                 puesto_trabajo: usuario.puesto_trabajo || '',
@@ -175,6 +199,7 @@ export const Usuarios = () => {
                 nombre: '',
                 primer_apellido: '',
                 segundo_apellido: '',
+                dni: '',
                 email: '',
                 telefono: '',
                 puesto_trabajo: '',
@@ -194,6 +219,7 @@ export const Usuarios = () => {
             nombre: '',
             primer_apellido: '',
             segundo_apellido: '',
+            dni: '',
             email: '',
             telefono: '',
             puesto_trabajo: '',
@@ -229,6 +255,7 @@ export const Usuarios = () => {
                     nombre: nuevoUsuario.nombre,
                     primer_apellido: nuevoUsuario.primer_apellido,
                     segundo_apellido: nuevoUsuario.segundo_apellido || null,
+                    dni: nuevoUsuario.dni || null,
                     email: nuevoUsuario.email,
                     telefono: nuevoUsuario.telefono || null,
                     puesto_trabajo: nuevoUsuario.puesto_trabajo || null,
@@ -242,6 +269,7 @@ export const Usuarios = () => {
                     nombre: nuevoUsuario.nombre,
                     primer_apellido: nuevoUsuario.primer_apellido,
                     segundo_apellido: nuevoUsuario.segundo_apellido || null,
+                    dni: nuevoUsuario.dni || null,
                     email: nuevoUsuario.email,
                     telefono: nuevoUsuario.telefono || null,
                     puesto_trabajo: nuevoUsuario.puesto_trabajo || null,
@@ -320,14 +348,26 @@ export const Usuarios = () => {
                     <Typography variant="h5" component="h2">
                         Gestión de Usuarios
                     </Typography>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        startIcon={<AddIcon />}
-                        onClick={() => handleOpenDialog()}
-                    >
-                        Nuevo Usuario
-                    </Button>
+                    <Box>
+                        <Button 
+                            variant="contained" 
+                            color="primary" 
+                            startIcon={<AddIcon />}
+                            onClick={handleOpenAdminDialog}
+                            sx={{ ml: 2 }}
+                        >
+                            Nuevo Administrador
+                        </Button>
+                        <Button 
+                            variant="outlined" 
+                            color="primary" 
+                            startIcon={<AddIcon />}
+                            onClick={() => handleOpenDialog()}
+                            sx={{ ml: 2 }}
+                        >
+                            Nuevo Usuario
+                        </Button>
+                    </Box>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                     <TextField
@@ -365,7 +405,7 @@ export const Usuarios = () => {
                         {usuariosFiltrados.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
-                                    <Typography variant="body1" color="textSecondary">
+                                    <Typography variant="body1" color="text.secondary">
                                         {filtroBusqueda ? 
                                             'No se encontraron usuarios que coincidan con la búsqueda' : 
                                             'No hay usuarios registrados'}
@@ -383,16 +423,34 @@ export const Usuarios = () => {
                                     <TableCell>{usuario.telefono || '-'}</TableCell>
                                     <TableCell>{usuario.puesto_trabajo || '-'}</TableCell>
                                     <TableCell align="right">
-                                        <IconButton onClick={() => handleOpenDialog(usuario)} color="primary">
-                                            <EditIcon />
-                                        </IconButton>
-                                        <IconButton 
-                                            onClick={() => handleEliminar(usuario.id!)} 
-                                            color="error"
-                                            disabled={!usuario.id || usuario.id === 1}
-                                        >
-                                            <DeleteIcon />
-                                        </IconButton>
+                                        <Tooltip title="Editar usuario">
+                                            <IconButton onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleOpenDialog(usuario)
+                                            }}
+                                            color="primary">
+                                                <EditIcon />
+                                            </IconButton>
+                                        </Tooltip>
+                                        {usuario.es_admin && (
+                                            <Tooltip title="Cambiar contraseña">
+                                                <IconButton 
+                                                    onClick={() => handleOpenPasswordDialog(usuario)}
+                                                    color="primary"
+                                                >
+                                                    <VpnKeyIcon />
+                                                </IconButton>
+                                            </Tooltip>
+                                        )}
+                                        <Tooltip title={usuario.activo ? "Desactivar usuario" : "Activar usuario"}>
+                                            <IconButton 
+                                                onClick={() => handleEliminar(usuario.id!)} 
+                                                color="error"
+                                                disabled={!usuario.id || usuario.id === 1}
+                                            >
+                                                <DeleteIcon />
+                                            </IconButton>
+                                        </Tooltip>
                                     </TableCell>
                                 </TableRow>
                             ))
@@ -437,6 +495,14 @@ export const Usuarios = () => {
                                 label="Segundo Apellido"
                                 name="segundo_apellido"
                                 value={nuevoUsuario.segundo_apellido || ''}
+                                onChange={handleInputChange}
+                                margin="normal"
+                            />
+                            <TextField
+                                fullWidth
+                                label="DNI"
+                                name="dni"
+                                value={nuevoUsuario.dni || ''}
                                 onChange={handleInputChange}
                                 margin="normal"
                             />
@@ -586,17 +652,19 @@ export const Usuarios = () => {
                                                             )}
                                                         </TableCell>
                                                         <TableCell>
-                                                            <IconButton
-                                                                size="small"
-                                                                onClick={() => {
-                                                                    const updatedGrupos = gruposUsuario.map(g => 
-                                                                        g.grupo_id === grupo.grupo_id ? { ...g, activo: !g.activo } : g
-                                                                    );
-                                                                    setGruposUsuario(updatedGrupos);
-                                                                }}
-                                                            >
-                                                                {grupo.activo ? <CancelIcon color="error" /> : <CheckCircleIcon color="success" />}
-                                                            </IconButton>
+                                                            <Tooltip title={grupo.activo ? "Desactivar grupo" : "Activar grupo"}>
+                                                                <IconButton
+                                                                    size="small"
+                                                                    onClick={() => {
+                                                                        const updatedGrupos = gruposUsuario.map(g => 
+                                                                            g.grupo_id === grupo.grupo_id ? { ...g, activo: !g.activo } : g
+                                                                        );
+                                                                        setGruposUsuario(updatedGrupos);
+                                                                    }}
+                                                                >
+                                                                    {grupo.activo ? <CancelIcon color="error" /> : <CheckCircleIcon color="success" />}
+                                                                </IconButton>
+                                                            </Tooltip>
                                                         </TableCell>
                                                     </TableRow>
                                                 ))}
@@ -621,6 +689,146 @@ export const Usuarios = () => {
                         </Button>
                     </DialogActions>
                 </form>
+            </Dialog>
+
+            <Dialog open={openAdminDialog} onClose={handleCloseAdminDialog} maxWidth="sm" fullWidth>
+                <DialogTitle>Nuevo Administrador</DialogTitle>
+                <DialogContent>
+                    <Box display="flex" flexDirection="column" gap={2} mt={2}>
+                        <TextField
+                            name="nombre"
+                            label="Nombre"
+                            value={nuevoAdmin.nombre}
+                            onChange={handleAdminInputChange}
+                            fullWidth
+                            required
+                        />
+                        <TextField
+                            name="primer_apellido"
+                            label="Primer Apellido"
+                            value={nuevoAdmin.primer_apellido}
+                            onChange={handleAdminInputChange}
+                            fullWidth
+                            required
+                        />
+                        <TextField
+                            name="segundo_apellido"
+                            label="Segundo Apellido"
+                            value={nuevoAdmin.segundo_apellido || ''}
+                            onChange={handleAdminInputChange}
+                            fullWidth
+                        />
+                        <TextField
+                            name="dni"
+                            label="DNI"
+                            value={nuevoAdmin.dni || ''}
+                            onChange={handleAdminInputChange}
+                            fullWidth
+                        />
+                        <TextField
+                            name="email"
+                            label="Correo Electrónico"
+                            type="email"
+                            value={nuevoAdmin.email}
+                            onChange={handleAdminInputChange}
+                            fullWidth
+                            required
+                        />
+                        <TextField
+                            name="password"
+                            label="Contraseña"
+                            type="password"
+                            value={nuevoAdmin.password}
+                            onChange={handleAdminInputChange}
+                            fullWidth
+                            required
+                        />
+                        <TextField
+                            name="telefono"
+                            label="Teléfono"
+                            value={nuevoAdmin.telefono || ''}
+                            onChange={handleAdminInputChange}
+                            fullWidth
+                        />
+                        <TextField
+                            name="puesto_trabajo"
+                            label="Puesto de Trabajo"
+                            value={nuevoAdmin.puesto_trabajo}
+                            onChange={handleAdminInputChange}
+                            fullWidth
+                        />
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    checked={nuevoAdmin.activo}
+                                    onChange={(e) => 
+                                        setNuevoAdmin(prev => ({
+                                            ...prev,
+                                            activo: e.target.checked
+                                        }))
+                                    }
+                                    name="activo"
+                                    color="primary"
+                                />
+                            }
+                            label="Usuario activo"
+                        />
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseAdminDialog}>Cancelar</Button>
+                    <Button 
+                        onClick={handleCreateAdmin} 
+                        variant="contained" 
+                        color="primary"
+                        disabled={!nuevoAdmin.nombre || !nuevoAdmin.primer_apellido || !nuevoAdmin.email || !nuevoAdmin.password}
+                    >
+                        Crear Administrador
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Password Change Dialog */}
+            <Dialog 
+                open={openPasswordDialog} 
+                onClose={() => setOpenPasswordDialog(false)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle>Cambiar contraseña</DialogTitle>
+                <DialogContent>
+                    <Box sx={{ mt: 2 }}>
+                        <TextField
+                            fullWidth
+                            margin="normal"
+                            label="Nueva contraseña"
+                            type="password"
+                            value={passwordData.nuevaContrasena}
+                            onChange={(e) => setPasswordData({...passwordData, nuevaContrasena: e.target.value})}
+                        />
+                        <TextField
+                            fullWidth
+                            margin="normal"
+                            label="Confirmar contraseña"
+                            type="password"
+                            value={passwordData.confirmarContrasena}
+                            onChange={(e) => setPasswordData({...passwordData, confirmarContrasena: e.target.value})}
+                            error={!!passwordError}
+                            helperText={passwordError}
+                        />
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setOpenPasswordDialog(false)}>Cancelar</Button>
+                    <Button 
+                        onClick={handleChangePassword} 
+                        variant="contained" 
+                        color="primary"
+                        disabled={!passwordData.nuevaContrasena || passwordData.nuevaContrasena !== passwordData.confirmarContrasena}
+                    >
+                        Guardar
+                    </Button>
+                </DialogActions>
             </Dialog>
 
             <Snackbar

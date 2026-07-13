@@ -60,6 +60,10 @@ export const createUsuario = (data: Omit<Usuario, 'id'>): Promise<ApiResponse<Us
 export const updateUsuario = (id: number, data: Partial<Usuario>): Promise<ApiResponse<Usuario>> => api.put(`/api/usuarios/${id}`, data);
 export const deleteUsuario = (id: number): Promise<ApiResponse<void>> => api.delete(`/api/usuarios/${id}`);
 
+// Crear un nuevo usuario administrador
+export const createAdminUser = (data: Omit<Usuario, 'id'> & { password: string }): Promise<ApiResponse<Usuario>> => 
+  api.post('/api/admin/users', data);
+
 // Miembros
 export const getMiembros = (grupoId?: number, activo?: boolean): Promise<ApiResponse<Miembro[]>> => {
     const params = new URLSearchParams();
