@@ -1086,7 +1086,7 @@ app.put('/api/reuniones/:id', requireAdmin, (req, res) => {
     
     const query = `
         UPDATE reuniones 
-        SET fecha = ?, hora = ?, ubicacion = ?, descripcion = ?, updated_at = CURRENT_TIMESTAMP
+        SET fecha = ?, hora = ?, ubicacion = ?, descripcion = ?
         WHERE id = ?
     `;
     
