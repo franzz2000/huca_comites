@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Reunion, Asistencia } from '../types';
+import type { Reunion, Asistencia, Convocatoria } from '../types';
 
 const API_URL = `${import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:3001' : '')}/api`;
 
@@ -138,4 +138,17 @@ export const saveAsistencias = async (reunionId: number, asistencias: Omit<Asist
     { headers: getAuthHeaders() }
   );
   return response.data;
+};
+
+export const getConvocatorias = async (reunionId: number): Promise<Convocatoria[]> => {
+  const response = await axios.get(`${API_URL}/reuniones/${reunionId}/convocatorias`, { headers: getAuthHeaders() });
+  return response.data;
+};
+
+export const enviarConvocatoria = async (reunionId: number, texto: string, archivos: File[]): Promise<void> => {
+  const formData = new FormData();
+  formData.append('texto', texto);
+  archivos.forEach(archivo => formData.append('archivos', archivo));
+  const { ['Content-Type']: _contentType, ...headers } = getAuthHeaders();
+  await axios.post(`${API_URL}/reuniones/${reunionId}/convocatorias`, formData, { headers });
 };

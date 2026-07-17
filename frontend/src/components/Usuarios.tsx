@@ -338,9 +338,10 @@ export const Usuarios = () => {
             await cargarUsuarios();
         } catch (error) {
             console.error('Error al guardar el usuario:', error);
+            const apiError = error as { response?: { data?: { error?: string } } };
             setSnackbar({ 
                 open: true, 
-                message: `Error al ${usuarioEditando ? 'actualizar' : 'crear'} el usuario: ${error instanceof Error ? error.message : 'Error desconocido'}`, 
+                message: `Error al ${usuarioEditando ? 'actualizar' : 'crear'} el usuario: ${apiError.response?.data?.error || (error instanceof Error ? error.message : 'Error desconocido')}`,
                 severity: 'error' 
             });
         }

@@ -40,6 +40,7 @@ Aplicación web para gestionar grupos de usuarios, sus altas y bajas, reuniones 
 
 - Reuniones: grupo, fecha, hora, ubicación y descripción.
 - Asistencias: una por persona y reunión, con estados `asistio`, `no_asistio` o `excusa`, y observaciones.
+- Las convocatorias se envían por SMTP a todos los miembros activos con email del grupo, permiten adjuntos y registran cada envío.
 - El formulario de reunión incluye solo miembros cuya membresía estaba vigente en la fecha de la reunión.
 - Las migraciones de arranque comprueban columnas antiguas de `asistencias` (`estado`, `observaciones`, `updated_at`). No usar `updated_at` en `reuniones`: esa columna no existe en dicha tabla.
 
@@ -73,6 +74,7 @@ npm run dev
 - Es apropiado para un Nginx del host que haga proxy a `/comites/`.
 - `VITE_BASE_PATH` y `VITE_API_URL` son variables de compilación; cambiar cualquiera obliga a reconstruir la imagen.
 - Variables mínimas en `.env`: `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `APP_PORT`, `VITE_BASE_PATH`, `VITE_API_URL`. Usar `.env.example` como modelo y nunca versionar `.env`.
+- Para convocatorias hay que definir `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` y `SMTP_FROM`.
 
 Despliegue tras actualizar el código:
 

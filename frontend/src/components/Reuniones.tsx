@@ -27,10 +27,12 @@ import {
   Edit as EditIcon, 
   Delete as DeleteIcon,
   People as PeopleIcon,
+  Email as EmailIcon,
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ReunionForm } from './ReunionForm';
+import { ConvocatoriasDialog } from './ConvocatoriasDialog';
 import { 
   getReunionesByGrupo, 
   deleteReunion, 
@@ -47,11 +49,13 @@ interface ReunionesProps {
 }
 
 export const Reuniones: React.FC<ReunionesProps> = ({ grupoId, miembros }) => {
+  const convocatoriasDisponibles = import.meta.env.DEV;
   const [reuniones, setReuniones] = useState<Array<Reunion & { asistencias?: Asistencia[] }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [reunionEditando, setReunionEditando] = useState<Reunion | null>(null);
   const [reunionEliminar, setReunionEliminar] = useState<Reunion | null>(null);
+  const [reunionConvocatoria, setReunionConvocatoria] = useState<Reunion | null>(null);
   const [isEliminando, setIsEliminando] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   
@@ -289,6 +293,11 @@ export const Reuniones: React.FC<ReunionesProps> = ({ grupoId, miembros }) => {
                           <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
+                      {convocatoriasDisponibles && <Tooltip title="Enviar o reenviar convocatoria">
+                        <IconButton size="small" color="primary" onClick={() => setReunionConvocatoria(reunion)}>
+                          <EmailIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>}
                       <Tooltip title="Eliminar">
                         <IconButton
                           size="small"
@@ -316,6 +325,11 @@ export const Reuniones: React.FC<ReunionesProps> = ({ grupoId, miembros }) => {
         reunion={reunionEditando}
         onSave={handleGuardarReunion}
       />
+      {convocatoriasDisponibles && <ConvocatoriasDialog
+        open={!!reunionConvocatoria}
+        reunion={reunionConvocatoria}
+        onClose={() => setReunionConvocatoria(null)}
+      />}
 
       {/* Diálogo de confirmación para eliminar */}
       <Dialog

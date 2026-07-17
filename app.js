@@ -4,6 +4,8 @@ const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const nodemailer = require('nodemailer');
+const multer = require('multer');
 const { verifyToken, requireAdmin } = require('./middleware/auth');
 const { createAdminUser } = require('./scripts/createAdminUser');
 const path = require('path');
@@ -31,6 +33,23 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const soloDesarrollo = (_req, res, next) => {
+    if (process.env.NODE_ENV === 'production') {
+        return res.status(404).json({ error: 'Funcionalidad no disponible en producción' });
+    }
+    next();
+};
+
+const uploadsDir = path.join(__dirname, 'data', 'convocatorias');
+fs.mkdirSync(uploadsDir, { recursive: true });
+const upload = multer({
+    storage: multer.diskStorage({
+        destination: (_req, _file, cb) => cb(null, uploadsDir),
+        filename: (_req, file, cb) => cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`)
+    }),
+    limits: { fileSize: 10 * 1024 * 1024, files: 10 }
+});
+
 // Configuración de la base de datos
 const db = new sqlite3.Database('./data/grupos.db', (err) => {
     if (err) {
@@ -39,6 +58,27 @@ const db = new sqlite3.Database('./data/grupos.db', (err) => {
         console.log('Conectado a la base de datos SQLite');
     }
 });
+
+const createConvocatoriaTables = (callback) => {
+    db.run(`CREATE TABLE IF NOT EXISTS convocatorias (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        reunion_id INTEGER NOT NULL,
+        texto TEXT NOT NULL,
+        destinatarios TEXT NOT NULL,
+        enviada_en DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (reunion_id) REFERENCES reuniones(id) ON DELETE CASCADE
+    )`, (err) => {
+        if (err) return callback(err);
+        db.run(`CREATE TABLE IF NOT EXISTS convocatoria_archivos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            convocatoria_id INTEGER NOT NULL,
+            nombre_original TEXT NOT NULL,
+            ruta TEXT NOT NULL,
+            mimetype TEXT,
+            FOREIGN KEY (convocatoria_id) REFERENCES convocatorias(id) ON DELETE CASCADE
+        )`, callback);
+    });
+};
 
 // Crear tablas
 const createTables = (callback) => {
@@ -140,7 +180,7 @@ const createTables = (callback) => {
 
                             const agregarSiguiente = () => {
                                 const siguiente = pendientes.shift();
-                                if (!siguiente) return callback();
+                                if (!siguiente) return createConvocatoriaTables(callback);
 
                                 db.run(`ALTER TABLE asistencias ADD COLUMN ${siguiente[1]}`, (alterErr) => {
                                     if (alterErr) return callback(alterErr);
@@ -451,6 +491,9 @@ app.put('/api/usuarios/:id', requireAdmin, async (req, res) => {
         function(err) {
             if (err) {
                 console.error('Error al actualizar usuario:', err);
+                if (err.code === 'SQLITE_CONSTRAINT' && err.message.includes('personas.email')) {
+                    return res.status(409).json({ error: 'Ya existe otro usuario con ese correo electrónico' });
+                }
                 return res.status(500).json({ 
                     error: 'Error al actualizar el usuario',
                     details: err.message 
@@ -1191,6 +1234,89 @@ app.post('/api/reuniones/:id/asistencias', requireAdmin, (req, res) => {
 });
 
 // Obtener estadísticas de asistencia de un usuario en un grupo
+const eliminarArchivosSubidos = (files = []) => files.forEach(file => fs.unlink(file.path, () => {}));
+
+const obtenerDatosConvocatoria = (reunionId) => new Promise((resolve, reject) => {
+    db.get(`SELECT r.*, g.nombre AS grupo_nombre
+            FROM reuniones r JOIN grupos g ON g.id = r.grupo_id WHERE r.id = ?`, [reunionId], (err, reunion) => {
+        if (err || !reunion) return reject(err || new Error('Reunión no encontrada'));
+        db.all(`SELECT p.email FROM miembros m JOIN personas p ON p.id = m.persona_id
+                WHERE m.grupo_id = ? AND m.activo = 1 AND p.email IS NOT NULL AND TRIM(p.email) <> ''`,
+        [reunion.grupo_id], (membersErr, miembros) => membersErr ? reject(membersErr) : resolve({ reunion, emails: [...new Set(miembros.map(m => m.email))] }));
+    });
+});
+
+const sustituirCamposConvocatoria = (texto, reunion) => texto
+    .replaceAll('{fecha}', reunion.fecha)
+    .replaceAll('{hora}', reunion.hora)
+    .replaceAll('{lugar}', reunion.ubicacion || '')
+    .replaceAll('{grupo}', reunion.grupo_nombre);
+
+app.get('/api/reuniones/:id/convocatorias', soloDesarrollo, (req, res) => {
+    db.all('SELECT * FROM convocatorias WHERE reunion_id = ? ORDER BY enviada_en DESC', [req.params.id], (err, convocatorias) => {
+        if (err) return res.status(500).json({ error: 'Error al obtener las convocatorias' });
+        Promise.all(convocatorias.map(convocatoria => new Promise((resolve, reject) => {
+            db.all('SELECT id, nombre_original, mimetype FROM convocatoria_archivos WHERE convocatoria_id = ?', [convocatoria.id], (filesErr, archivos) =>
+                filesErr ? reject(filesErr) : resolve({ ...convocatoria, archivos })
+            );
+        }))).then(result => res.json(result)).catch(() => res.status(500).json({ error: 'Error al obtener los adjuntos' }));
+    });
+});
+
+app.post('/api/reuniones/:id/convocatorias', soloDesarrollo, requireAdmin, upload.array('archivos', 10), async (req, res) => {
+    const files = req.files || [];
+    try {
+        if (!process.env.SMTP_HOST || !process.env.SMTP_FROM) {
+            eliminarArchivosSubidos(files);
+            return res.status(503).json({ error: 'El correo SMTP no está configurado. Define SMTP_HOST y SMTP_FROM.' });
+        }
+        if (!req.body.texto?.trim()) {
+            eliminarArchivosSubidos(files);
+            return res.status(400).json({ error: 'El texto de la convocatoria es obligatorio' });
+        }
+
+        const { reunion, emails } = await obtenerDatosConvocatoria(req.params.id);
+        if (emails.length === 0) {
+            eliminarArchivosSubidos(files);
+            return res.status(400).json({ error: 'No hay miembros activos con correo electrónico en este grupo' });
+        }
+
+        const texto = sustituirCamposConvocatoria(req.body.texto, reunion);
+        const transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST,
+            port: Number(process.env.SMTP_PORT || 587),
+            secure: process.env.SMTP_SECURE === 'true',
+            auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD } : undefined
+        });
+        await transporter.sendMail({
+            from: process.env.SMTP_FROM,
+            bcc: emails,
+            subject: `Convocatoria: ${reunion.grupo_nombre} — ${reunion.fecha} ${reunion.hora}`,
+            text: texto,
+            attachments: files.map(file => ({ filename: file.originalname, path: file.path, contentType: file.mimetype }))
+        });
+
+        db.run('INSERT INTO convocatorias (reunion_id, texto, destinatarios) VALUES (?, ?, ?)',
+            [reunion.id, texto, JSON.stringify(emails)], function(err) {
+                if (err) {
+                    eliminarArchivosSubidos(files);
+                    return res.status(500).json({ error: 'El correo se envió, pero no se pudo registrar la convocatoria' });
+                }
+                const convocatoriaId = this.lastID;
+                const stmt = db.prepare('INSERT INTO convocatoria_archivos (convocatoria_id, nombre_original, ruta, mimetype) VALUES (?, ?, ?, ?)');
+                files.forEach(file => stmt.run([convocatoriaId, file.originalname, file.path, file.mimetype]));
+                stmt.finalize(finalizeErr => {
+                    if (finalizeErr) return res.status(500).json({ error: 'El correo se envió, pero no se pudieron registrar los adjuntos' });
+                    res.status(201).json({ id: convocatoriaId, destinatarios: emails.length, texto });
+                });
+            });
+    } catch (error) {
+        console.error('Error al enviar convocatoria:', error);
+        eliminarArchivosSubidos(files);
+        res.status(error.message === 'Reunión no encontrada' ? 404 : 500).json({ error: error.message || 'No se pudo enviar la convocatoria' });
+    }
+});
+
 app.get('/api/usuarios/:usuarioId/grupos/:grupoId/estadisticas', verifyToken, (req, res) => {
     const { usuarioId, grupoId } = req.params;
 

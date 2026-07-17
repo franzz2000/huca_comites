@@ -48,6 +48,15 @@ export interface Reunion {
     asistencias?: Asistencia[];
 }
 
+export interface Convocatoria {
+    id: number;
+    reunion_id: number;
+    texto: string;
+    destinatarios: string;
+    enviada_en: string;
+    archivos: { id: number; nombre_original: string; mimetype?: string }[];
+}
+
 export interface Asistencia {
     id?: number;
     reunion_id: number;
