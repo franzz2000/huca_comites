@@ -49,7 +49,7 @@ interface ReunionesProps {
 }
 
 export const Reuniones: React.FC<ReunionesProps> = ({ grupoId, miembros }) => {
-  const convocatoriasDisponibles = import.meta.env.DEV;
+  const convocatoriasDisponibles = true;
   const [reuniones, setReuniones] = useState<Array<Reunion & { asistencias?: Asistencia[] }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);

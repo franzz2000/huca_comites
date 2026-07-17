@@ -19,6 +19,13 @@ ADMIN_EMAIL=admin@example.org
 ADMIN_PASSWORD=elige_una_contrasena_segura
 # Opcional: puerto local publicado en el host (por defecto, 3101)
 APP_PORT=3101
+# Correo SMTP para convocatorias (requerido para realizar envios)
+SMTP_HOST=smtp.example.org
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=usuario_smtp
+SMTP_PASSWORD=contrasena_smtp
+SMTP_FROM="Comites HUCA <comites@example.org>"
 ```
 
 El usuario administrador se crea o actualiza al arrancar la aplicación con el correo y contraseña configurados arriba.

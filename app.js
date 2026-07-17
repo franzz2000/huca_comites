@@ -33,13 +33,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const soloDesarrollo = (_req, res, next) => {
-    if (process.env.NODE_ENV === 'production') {
-        return res.status(404).json({ error: 'Funcionalidad no disponible en producción' });
-    }
-    next();
-};
-
 const uploadsDir = path.join(__dirname, 'data', 'convocatorias');
 fs.mkdirSync(uploadsDir, { recursive: true });
 const upload = multer({
@@ -1252,7 +1245,7 @@ const sustituirCamposConvocatoria = (texto, reunion) => texto
     .replaceAll('{lugar}', reunion.ubicacion || '')
     .replaceAll('{grupo}', reunion.grupo_nombre);
 
-app.get('/api/reuniones/:id/convocatorias', soloDesarrollo, (req, res) => {
+app.get('/api/reuniones/:id/convocatorias', requireAdmin, (req, res) => {
     db.all('SELECT * FROM convocatorias WHERE reunion_id = ? ORDER BY enviada_en DESC', [req.params.id], (err, convocatorias) => {
         if (err) return res.status(500).json({ error: 'Error al obtener las convocatorias' });
         Promise.all(convocatorias.map(convocatoria => new Promise((resolve, reject) => {
@@ -1263,7 +1256,7 @@ app.get('/api/reuniones/:id/convocatorias', soloDesarrollo, (req, res) => {
     });
 });
 
-app.post('/api/reuniones/:id/convocatorias', soloDesarrollo, requireAdmin, upload.array('archivos', 10), async (req, res) => {
+app.post('/api/reuniones/:id/convocatorias', requireAdmin, upload.array('archivos', 10), async (req, res) => {
     const files = req.files || [];
     try {
         if (!process.env.SMTP_HOST || !process.env.SMTP_FROM) {

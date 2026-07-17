@@ -153,6 +153,12 @@ ADMIN_EMAIL=administrador@ejemplo.es
 ADMIN_PASSWORD=una-contrasena-segura
 VITE_BASE_PATH=/comites/
 VITE_API_URL=/comites
+SMTP_HOST=smtp.example.org
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=usuario_smtp
+SMTP_PASSWORD=contrasena_smtp
+SMTP_FROM="Comites HUCA <comites@example.org>"
 ```
 
 `VITE_BASE_PATH` y `VITE_API_URL` se incorporan al cliente durante la compilación. Por ello, después de cambiarlas hay que reconstruir la imagen.
