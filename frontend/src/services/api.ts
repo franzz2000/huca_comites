@@ -59,6 +59,8 @@ export const getUsuario = (id: number): Promise<ApiResponse<Usuario>> => api.get
 export const createUsuario = (data: Omit<Usuario, 'id'>): Promise<ApiResponse<Usuario>> => api.post('/api/usuarios', data);
 export const updateUsuario = (id: number, data: Partial<Usuario>): Promise<ApiResponse<Usuario>> => api.put(`/api/usuarios/${id}`, data);
 export const deleteUsuario = (id: number): Promise<ApiResponse<void>> => api.delete(`/api/usuarios/${id}`);
+export const descargarInformeUsuario = (id: number): Promise<Blob> =>
+    api.get(`/api/usuarios/${id}/informe.pdf`, { responseType: 'blob' }).then(response => response.data);
 
 // Crear un nuevo usuario administrador
 export const createAdminUser = (data: Omit<Usuario, 'id'> & { password: string }): Promise<ApiResponse<Usuario>> => 

@@ -23,6 +23,8 @@ const theme = createTheme({
   },
 });
 
+const entornoEjecucion = import.meta.env.PROD ? 'Producción' : 'Desarrollo';
+
 const AppLayout = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
@@ -85,6 +87,9 @@ const AppLayout = () => {
         <Container maxWidth="lg">
           <Typography variant="body2" color="text.secondary" align="center">
             {new Date().getFullYear()} Gestión de Comités - Todos los derechos reservados
+          </Typography>
+          <Typography variant="caption" color="text.secondary" align="center" display="block" sx={{ mt: 0.5 }}>
+            Entorno de ejecución: {entornoEjecucion}
           </Typography>
         </Container>
       </Box>

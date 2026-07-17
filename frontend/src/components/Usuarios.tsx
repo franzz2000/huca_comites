@@ -33,9 +33,10 @@ import {
     Delete as DeleteIcon, 
     Search as SearchIcon,
     Group as GroupIcon,
-    VpnKey as VpnKeyIcon
+    VpnKey as VpnKeyIcon,
+    PictureAsPdf as PictureAsPdfIcon
 } from '@mui/icons-material';
-import { getUsuarios, createUsuario, updateUsuario, deleteUsuario, getMiembros, getGrupos, getEstadisticasAsistencia } from '../services/api';
+import { getUsuarios, createUsuario, updateUsuario, deleteUsuario, descargarInformeUsuario, getMiembros, getGrupos, getEstadisticasAsistencia } from '../services/api';
 import type { Usuario, Miembro, Grupo } from '../types';
 
 interface GrupoUsuario extends Omit<Miembro, 'fecha_inicio' | 'fecha_fin'> {
@@ -102,6 +103,7 @@ export const Usuarios = () => {
         confirmarContrasena: ''
     });
     const [passwordError, setPasswordError] = useState('');
+    const [usuarioGenerandoInforme, setUsuarioGenerandoInforme] = useState<number | null>(null);
 
     const usuariosFiltrados = usuarios.filter(usuario => {
         const busqueda = filtroBusqueda.toLowerCase();
@@ -362,6 +364,24 @@ export const Usuarios = () => {
         }
     };
 
+    const handleDescargarInforme = async (usuario: Usuario) => {
+        if (!usuario.id) return;
+        try {
+            setUsuarioGenerandoInforme(usuario.id);
+            const pdf = await descargarInformeUsuario(usuario.id);
+            const enlace = document.createElement('a');
+            enlace.href = URL.createObjectURL(pdf);
+            enlace.download = `informe-${usuario.nombre}-${usuario.primer_apellido}.pdf`;
+            enlace.click();
+            URL.revokeObjectURL(enlace.href);
+        } catch (error) {
+            console.error('Error al descargar el informe:', error);
+            mostrarMensaje('No se pudo generar el informe PDF', 'error');
+        } finally {
+            setUsuarioGenerandoInforme(null);
+        }
+    };
+
     const cargarEstadisticasGrupo = useCallback(async (usuarioId: number, grupo: GrupoUsuario) => {
         try {
             setGruposUsuario(prev => prev.map(g => 
@@ -487,6 +507,17 @@ export const Usuarios = () => {
                                             color="primary">
                                                 <EditIcon />
                                             </IconButton>
+                                        </Tooltip>
+                                        <Tooltip title="Descargar informe PDF">
+                                            <span>
+                                                <IconButton
+                                                    onClick={() => handleDescargarInforme(usuario)}
+                                                    color="primary"
+                                                    disabled={usuarioGenerandoInforme === usuario.id}
+                                                >
+                                                    {usuarioGenerandoInforme === usuario.id ? <CircularProgress size={20} /> : <PictureAsPdfIcon />}
+                                                </IconButton>
+                                            </span>
                                         </Tooltip>
                                         {usuario.es_admin && (
                                             <Tooltip title="Cambiar contraseña">

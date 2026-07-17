@@ -1180,17 +1180,18 @@ app.post('/api/reuniones/:id/asistencias', requireAdmin, (req, res) => {
         db.run('BEGIN TRANSACTION');
         
         const stmt = db.prepare(`
-            INSERT INTO asistencias (reunion_id, persona_id, estado, observaciones)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO asistencias (reunion_id, persona_id, asistio, estado, observaciones)
+            VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(reunion_id, persona_id) 
             DO UPDATE SET 
+                asistio = excluded.asistio,
                 estado = excluded.estado,
                 observaciones = excluded.observaciones,
                 updated_at = CURRENT_TIMESTAMP
         `);
         
         asistencias.forEach(({ persona_id, estado, observaciones }) => {
-            stmt.run([reunion_id, persona_id, estado, observaciones || null], (err) => {
+            stmt.run([reunion_id, persona_id, estado === 'asistio' ? 1 : 0, estado, observaciones || null], (err) => {
                 if (err) {
                     console.error('Error al guardar la asistencia:', err);
                     return db.run('ROLLBACK', () => {
@@ -1244,6 +1245,95 @@ const sustituirCamposConvocatoria = (texto, reunion) => texto
     .replaceAll('{hora}', reunion.hora)
     .replaceAll('{lugar}', reunion.ubicacion || '')
     .replaceAll('{grupo}', reunion.grupo_nombre);
+
+const textoPdf = (valor) => String(valor ?? '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\\()]/g, '\\$&')
+    .replace(/[^\x20-\x7E]/g, '?');
+
+const crearPdf = (lineas) => {
+    const lineasPorPagina = 46;
+    const paginas = [];
+    for (let indice = 0; indice < lineas.length; indice += lineasPorPagina) {
+        paginas.push(lineas.slice(indice, indice + lineasPorPagina));
+    }
+    if (paginas.length === 0) paginas.push([]);
+
+    const objetos = ['<< /Type /Catalog /Pages 2 0 R >>'];
+    const idsPagina = paginas.map((_, indice) => 4 + indice * 2);
+    objetos.push(`<< /Type /Pages /Kids [${idsPagina.map(id => `${id} 0 R`).join(' ')}] /Count ${paginas.length} >>`);
+    objetos.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+
+    paginas.forEach((pagina, indice) => {
+        const paginaId = idsPagina[indice];
+        const contenidoId = paginaId + 1;
+        const contenido = ['BT', '/F1 10 Tf', '50 790 Td', '14 TL', ...pagina.map((linea, lineaIndice) => `${lineaIndice ? 'T* ' : ''}(${textoPdf(linea)}) Tj`), 'ET'].join('\n');
+        objetos.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contenidoId} 0 R >>`);
+        objetos.push(`<< /Length ${Buffer.byteLength(contenido, 'ascii')} >>\nstream\n${contenido}\nendstream`);
+    });
+
+    let pdf = '%PDF-1.4\n';
+    const offsets = [0];
+    objetos.forEach((objeto, indice) => {
+        offsets.push(Buffer.byteLength(pdf, 'ascii'));
+        pdf += `${indice + 1} 0 obj\n${objeto}\nendobj\n`;
+    });
+    const inicioXref = Buffer.byteLength(pdf, 'ascii');
+    pdf += `xref\n0 ${objetos.length + 1}\n0000000000 65535 f \n`;
+    offsets.slice(1).forEach(offset => { pdf += `${String(offset).padStart(10, '0')} 00000 n \n`; });
+    pdf += `trailer\n<< /Size ${objetos.length + 1} /Root 1 0 R >>\nstartxref\n${inicioXref}\n%%EOF`;
+    return Buffer.from(pdf, 'ascii');
+};
+
+app.get('/api/usuarios/:id/informe.pdf', verifyToken, requireAdmin, (req, res) => {
+    const { id } = req.params;
+    db.get('SELECT id, nombre, primer_apellido, segundo_apellido, email FROM personas WHERE id = ?', [id], (userErr, usuario) => {
+        if (userErr) return res.status(500).json({ error: 'Error al obtener el usuario' });
+        if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+        const query = `
+            SELECT g.nombre AS grupo_nombre, m.fecha_inicio, m.fecha_fin, m.activo,
+                   r.fecha, r.hora, r.ubicacion, a.estado
+            FROM miembros m
+            JOIN grupos g ON g.id = m.grupo_id
+            LEFT JOIN reuniones r ON r.grupo_id = m.grupo_id
+                AND r.fecha >= m.fecha_inicio
+                AND (m.fecha_fin IS NULL OR r.fecha <= m.fecha_fin)
+            LEFT JOIN asistencias a ON a.reunion_id = r.id AND a.persona_id = m.persona_id
+            WHERE m.persona_id = ?
+            ORDER BY g.nombre, m.fecha_inicio, r.fecha, r.hora`;
+        db.all(query, [id], (reportErr, filas) => {
+            if (reportErr) return res.status(500).json({ error: 'Error al generar el informe' });
+
+            const nombreCompleto = [usuario.nombre, usuario.primer_apellido, usuario.segundo_apellido].filter(Boolean).join(' ');
+            const lineas = [
+                'INFORME DE COMITES Y ASISTENCIAS',
+                `Usuario: ${nombreCompleto}`,
+                `Correo: ${usuario.email}`,
+                `Generado: ${new Date().toLocaleDateString('es-ES')}`,
+                ''
+            ];
+            let membresiaActual = '';
+            filas.forEach(fila => {
+                const membresia = `${fila.grupo_nombre}|${fila.fecha_inicio}|${fila.fecha_fin || ''}`;
+                if (membresia !== membresiaActual) {
+                    membresiaActual = membresia;
+                    lineas.push(`COMITE: ${fila.grupo_nombre} (${fila.activo ? 'Activo' : 'Historico'})`);
+                    lineas.push(`Periodo: ${fila.fecha_inicio} - ${fila.fecha_fin || 'Actualidad'}`);
+                }
+                if (fila.fecha) {
+                    const estados = { asistio: 'Asistio', excusa: 'Excusa', no_asistio: 'No asistio' };
+                    lineas.push(`  ${fila.fecha} ${fila.hora || ''} | ${fila.ubicacion || 'Sin ubicacion'} | ${estados[fila.estado] || 'No asistio'}`);
+                }
+            });
+            if (filas.length === 0) lineas.push('El usuario no pertenece ni ha pertenecido a ningun comite.');
+
+            const archivo = `informe-${nombreCompleto.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || id}.pdf`;
+            res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${archivo}"` });
+            res.send(crearPdf(lineas));
+        });
+    });
+});
 
 app.get('/api/reuniones/:id/convocatorias', requireAdmin, (req, res) => {
     db.all('SELECT * FROM convocatorias WHERE reunion_id = ? ORDER BY enviada_en DESC', [req.params.id], (err, convocatorias) => {
